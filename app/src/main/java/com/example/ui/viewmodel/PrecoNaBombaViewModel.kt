@@ -120,13 +120,47 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
             if (success) {
                 _isUserLoggedInFlow.value = true
                 _userEmailFlow.value = FirebaseManager.getCurrentUserEmail()
-                if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
-                    navigateTo(Screen.MainStationHome)
+                
+                val uid = FirebaseManager.getCurrentUserUid()
+                if (uid != null) {
+                    FirebaseManager.fetchProfileFromFirestore(uid) { fetchedProfile ->
+                        viewModelScope.launch {
+                            if (fetchedProfile != null) {
+                                repository.updateProfile(fetchedProfile)
+                            } else {
+                                // Default profile if not yet created in cloud
+                                val defaultProfile = DriverProfile(
+                                    name = email.substringBefore("@").replaceFirstChar { it.uppercase() },
+                                    email = email,
+                                    phone = "(11) 98765-4321",
+                                    vehicleModel = "Toyota Corolla",
+                                    vehiclePlate = "ABC-1234",
+                                    averageConsumption = 12.0,
+                                    fuelType = "Flex",
+                                    isPremium = false
+                                )
+                                repository.updateProfile(defaultProfile)
+                            }
+                            
+                            if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
+                                navigateTo(Screen.MainStationHome)
+                            } else {
+                                navigateTo(Screen.MainDriverHome)
+                            }
+                            onResult(true, null)
+                        }
+                    }
                 } else {
-                    navigateTo(Screen.MainDriverHome)
+                    if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
+                        navigateTo(Screen.MainStationHome)
+                    } else {
+                        navigateTo(Screen.MainDriverHome)
+                    }
+                    onResult(true, null)
                 }
+            } else {
+                onResult(false, error)
             }
-            onResult(success, error)
         }
     }
 

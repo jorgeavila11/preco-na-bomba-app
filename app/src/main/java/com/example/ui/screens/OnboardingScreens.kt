@@ -245,20 +245,6 @@ fun OnboardingRoleSelectionScreen(
 
             Spacer(modifier = Modifier.height(24.dp))
 
-            // Skipping back-door
-            Text(
-                text = "Entrar diretamente como Motorista",
-                fontSize = 14.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary,
-                textAlign = TextAlign.Center,
-                modifier = Modifier
-                    .clickable { onNavigateDirectlyToHome() }
-                    .padding(4.dp)
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
             // Already have account: Login Option
             Text(
                 text = "Já tem uma conta? Faça Login",
@@ -283,12 +269,12 @@ fun DriverRegisterScreen(
     viewModel: PrecoNaBombaViewModel
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
-    var name by remember { mutableStateOf("João Silva") }
-    var email by remember { mutableStateOf("joao@exemplo.com") }
-    var password by remember { mutableStateOf("********") }
-    var model by remember { mutableStateOf("Toyota Corolla") }
-    var plate by remember { mutableStateOf("ABC-1234") }
-    var consumption by remember { mutableStateOf("12") }
+    var name by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var model by remember { mutableStateOf("") }
+    var plate by remember { mutableStateOf("") }
+    var consumption by remember { mutableStateOf("") }
 
     Scaffold(
         topBar = {
@@ -350,6 +336,7 @@ fun DriverRegisterScreen(
                 value = name,
                 onValueChange = { name = it },
                 label = { Text("Nome Completo") },
+                placeholder = { Text("Ex: João Silva") },
                 leadingIcon = { Icon(Icons.Default.Person, null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -359,6 +346,7 @@ fun DriverRegisterScreen(
                 value = email,
                 onValueChange = { email = it },
                 label = { Text("E-mail") },
+                placeholder = { Text("Ex: joao@exemplo.com") },
                 leadingIcon = { Icon(Icons.Default.Person, null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp),
@@ -369,6 +357,7 @@ fun DriverRegisterScreen(
                 value = password,
                 onValueChange = { password = it },
                 label = { Text("Senha") },
+                placeholder = { Text("Ex: Senha123") },
                 leadingIcon = { Icon(Icons.Default.Lock, null) },
                 visualTransformation = PasswordVisualTransformation(),
                 modifier = Modifier.fillMaxWidth(),
@@ -388,6 +377,7 @@ fun DriverRegisterScreen(
                 value = model,
                 onValueChange = { model = it },
                 label = { Text("Modelo do Veículo") },
+                placeholder = { Text("Ex: Toyota Corolla") },
                 leadingIcon = { Icon(Icons.Default.Person, null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(12.dp)
@@ -401,6 +391,7 @@ fun DriverRegisterScreen(
                     value = plate,
                     onValueChange = { plate = it },
                     label = { Text("Placa") },
+                    placeholder = { Text("Ex: ABC-1234") },
                     leadingIcon = { Icon(Icons.Default.Info, null) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp)
@@ -410,6 +401,7 @@ fun DriverRegisterScreen(
                     value = consumption,
                     onValueChange = { consumption = it },
                     label = { Text("Consumo Médio (km/L)") },
+                    placeholder = { Text("Ex: 12.0") },
                     leadingIcon = { Icon(Icons.Default.Info, null) },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(12.dp),
@@ -440,10 +432,7 @@ fun DriverRegisterScreen(
                         if (success) {
                             Toast.makeText(context, "Conta criada com sucesso e registrada no Firebase Cloud!", Toast.LENGTH_SHORT).show()
                         } else {
-                            // Offline demo fallback in case there is no internet connection
-                            Toast.makeText(context, "Modo Demo Ativo: Criando conta offline local...", Toast.LENGTH_LONG).show()
-                            viewModel.updateOwnerProfile(name, email, "(11) 98765-4321")
-                            viewModel.navigateTo(Screen.MainDriverHome)
+                            Toast.makeText(context, "Erro no Cadastro Firebase: $error", Toast.LENGTH_LONG).show()
                         }
                     }
                 },
@@ -456,7 +445,7 @@ fun DriverRegisterScreen(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        text = "Criar Conta",
+                        text = "Criar Conta (Firebase)",
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold,
                         color = Color.White
@@ -468,6 +457,21 @@ fun DriverRegisterScreen(
                         tint = Color.White
                     )
                 }
+            }
+
+            TextButton(
+                onClick = {
+                    Toast.makeText(context, "Modo Demo Ativo: Criando conta offline local...", Toast.LENGTH_SHORT).show()
+                    viewModel.updateOwnerProfile(name, email, "(11) 98765-4321")
+                    viewModel.navigateTo(Screen.MainDriverHome)
+                },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    text = "Criar Conta no Modo Demo (Sem Conexão)",
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.SemiBold
+                )
             }
 
             Text(
@@ -490,12 +494,12 @@ fun DriverRegisterScreen(
 fun StationRegisterScreen(
     viewModel: PrecoNaBombaViewModel
 ) {
-    var cnpj by remember { mutableStateOf("00.000.000/0000-00") }
-    var razaoSocial by remember { mutableStateOf("Nome jurídico da empresa") }
-    var nomeFantasia by remember { mutableStateOf("Como seu posto é conhecido") }
-    var selectBrand by remember { mutableStateOf("Ipiranga") }
-    var contactTel by remember { mutableStateOf("(00) 00000-0000") }
-    var email by remember { mutableStateOf("exemplo@posto.com.br") }
+    var cnpj by remember { mutableStateOf("") }
+    var razaoSocial by remember { mutableStateOf("") }
+    var nomeFantasia by remember { mutableStateOf("") }
+    var selectBrand by remember { mutableStateOf("") }
+    var contactTel by remember { mutableStateOf("") }
+    var email by remember { mutableStateOf("") }
     var isAgreed by remember { mutableStateOf(false) }
 
     Scaffold(
@@ -593,6 +597,7 @@ fun StationRegisterScreen(
                 OutlinedTextField(
                     value = cnpj,
                     onValueChange = { cnpj = it },
+                    placeholder = { Text("Ex: 00.000.000/0000-00") },
                     leadingIcon = { Icon(Icons.Default.Info, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -604,6 +609,7 @@ fun StationRegisterScreen(
                 OutlinedTextField(
                     value = razaoSocial,
                     onValueChange = { razaoSocial = it },
+                    placeholder = { Text("Ex: Posto de Combustíveis Silva Ltda") },
                     leadingIcon = { Icon(Icons.Default.Info, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -615,6 +621,7 @@ fun StationRegisterScreen(
                 OutlinedTextField(
                     value = nomeFantasia,
                     onValueChange = { nomeFantasia = it },
+                    placeholder = { Text("Ex: Posto Shalon") },
                     leadingIcon = { Icon(Icons.Default.Home, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -626,6 +633,7 @@ fun StationRegisterScreen(
                 OutlinedTextField(
                     value = selectBrand,
                     onValueChange = { selectBrand = it },
+                    placeholder = { Text("Ex: Ipiranga, Shell, BR") },
                     leadingIcon = { Icon(Icons.Default.Info, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
@@ -637,6 +645,7 @@ fun StationRegisterScreen(
                 OutlinedTextField(
                     value = contactTel,
                     onValueChange = { contactTel = it },
+                    placeholder = { Text("Ex: (11) 98765-4321") },
                     leadingIcon = { Icon(Icons.Default.Phone, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -649,6 +658,7 @@ fun StationRegisterScreen(
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },
+                    placeholder = { Text("Ex: exemplo@posto.com.br") },
                     leadingIcon = { Icon(Icons.Default.Info, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
@@ -898,18 +908,17 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                                 Toast.makeText(context, "Por favor, digite seu e-mail e senha.", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
-                            // Real Authentication using Firebase Auth with fallback demo
+                            // Real Authentication using Firebase Auth with registration verification
                             viewModel.login(targetEmail, targetPassword) { success, error ->
                                 if (success) {
                                     Toast.makeText(context, "Login efetuado com sucesso (Firebase)!", Toast.LENGTH_SHORT).show()
                                 } else {
-                                    // Fallback for demo when disconnected or configuring
-                                    Toast.makeText(context, "Modo Demo Ativo (Offline/Sem Conexão): Entrando...", Toast.LENGTH_LONG).show()
-                                    if (targetEmail.contains("posto", ignoreCase = true) || targetEmail == "exemplo@posto.com.br") {
-                                        viewModel.navigateTo(Screen.MainStationHome)
-                                    } else {
-                                        viewModel.navigateTo(Screen.MainDriverHome)
-                                    }
+                                    // Real error printed to screen
+                                    Toast.makeText(
+                                        context,
+                                        "Erro ao entrar / Usuário não cadastrado: $error",
+                                        Toast.LENGTH_LONG
+                                    ).show()
                                 }
                             }
                         },
@@ -924,9 +933,29 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                         )
                     ) {
                         Text(
-                            text = "Entrar",
+                            text = "Entrar via Firebase (Online)",
                             fontSize = 15.sp,
                             fontWeight = FontWeight.Bold
+                        )
+                    }
+
+                    // Simulated Demo Login Link
+                    TextButton(
+                        onClick = {
+                            Toast.makeText(context, "Modo Demonstrativo Ativo (Offline): Entrando...", Toast.LENGTH_SHORT).show()
+                            if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
+                                viewModel.navigateTo(Screen.MainStationHome)
+                            } else {
+                                viewModel.navigateTo(Screen.MainDriverHome)
+                            }
+                        },
+                        modifier = Modifier.align(Alignment.CenterHorizontally)
+                    ) {
+                        Text(
+                            text = "Entrar em Modo Demo (Offline)",
+                            color = Color(0xFF00327D),
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp
                         )
                     }
 

@@ -65,6 +65,42 @@ object FirebaseManager {
         return authInstance?.currentUser?.email
     }
 
+    fun getCurrentUserUid(): String? {
+        return authInstance?.currentUser?.uid
+    }
+
+    fun fetchProfileFromFirestore(uid: String, onResult: (DriverProfile?) -> Unit) {
+        val firestore = firestoreInstance
+        if (firestore == null) {
+            onResult(null)
+            return
+        }
+        firestore.collection("profiles").document(uid)
+            .get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    val profile = DriverProfile(
+                        id = 1,
+                        name = document.getString("name") ?: "",
+                        email = document.getString("email") ?: "",
+                        phone = document.getString("phone") ?: "",
+                        vehicleModel = document.getString("vehicleModel") ?: "",
+                        vehiclePlate = document.getString("vehiclePlate") ?: "",
+                        averageConsumption = document.getDouble("averageConsumption") ?: 12.0,
+                        fuelType = document.getString("fuelType") ?: "Flex",
+                        isPremium = document.getBoolean("isPremium") ?: false
+                    )
+                    onResult(profile)
+                } else {
+                    onResult(null)
+                }
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Erro ao buscar perfil no Firestore: ${exception.message}")
+                onResult(null)
+            }
+    }
+
     fun signOut(onComplete: () -> Unit) {
         try {
             authInstance?.signOut()
