@@ -10,6 +10,7 @@ sealed interface Screen {
     object OnboardingRoleSelection : Screen
     object DriverRegister : Screen
     object StationRegister : Screen
+    object UserLogin : Screen
     object MainDriverHome : Screen // Station List
     object DriverMap : Screen // Map Screen with Bottom Sheet
     object DriverProfileArea : Screen // Profile (Toyota Corolla card, account configs)

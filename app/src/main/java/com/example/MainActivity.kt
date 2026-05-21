@@ -66,6 +66,9 @@ class MainActivity : ComponentActivity() {
                         Screen.StationRegister -> {
                             StationRegisterScreen(viewModel = viewModel)
                         }
+                        Screen.UserLogin -> {
+                            UserLoginScreen(viewModel = viewModel)
+                        }
                         Screen.MainDriverHome -> {
                             MainDriverHome(viewModel = viewModel)
                         }
