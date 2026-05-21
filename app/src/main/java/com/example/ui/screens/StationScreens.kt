@@ -555,7 +555,11 @@ fun StationProfileArea(
 
             // Logout CTA
             Button(
-                onClick = { viewModel.navigateTo(Screen.OnboardingRoleSelection) },
+                onClick = {
+                    viewModel.logout {
+                        Toast.makeText(context, "Sessão encerrada com sucesso!", Toast.LENGTH_SHORT).show()
+                    }
+                },
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),

@@ -108,6 +108,69 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
         _currentScreen.value = screen
     }
 
+    // Firebase Auth States
+    private val _isUserLoggedInFlow = MutableStateFlow(FirebaseManager.isUserLoggedIn())
+    val isUserLoggedIn: StateFlow<Boolean> = _isUserLoggedInFlow.asStateFlow()
+
+    private val _userEmailFlow = MutableStateFlow(FirebaseManager.getCurrentUserEmail())
+    val userEmail: StateFlow<String?> = _userEmailFlow.asStateFlow()
+
+    fun login(email: String, password: String, onResult: (Boolean, String?) -> Unit) {
+        FirebaseManager.login(email, password) { success, error ->
+            if (success) {
+                _isUserLoggedInFlow.value = true
+                _userEmailFlow.value = FirebaseManager.getCurrentUserEmail()
+                if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
+                    navigateTo(Screen.MainStationHome)
+                } else {
+                    navigateTo(Screen.MainDriverHome)
+                }
+            }
+            onResult(success, error)
+        }
+    }
+
+    fun registerDriver(
+        email: String,
+        password: String,
+        name: String,
+        model: String,
+        plate: String,
+        consumption: Double,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val driverProfile = DriverProfile(
+            name = name,
+            email = email,
+            phone = "(11) 98765-4321",
+            vehicleModel = model,
+            vehiclePlate = plate,
+            averageConsumption = consumption,
+            fuelType = "Flex",
+            isPremium = false
+        )
+        FirebaseManager.registerDriver(email, password, driverProfile) { success, error ->
+            if (success) {
+                _isUserLoggedInFlow.value = true
+                _userEmailFlow.value = FirebaseManager.getCurrentUserEmail()
+                viewModelScope.launch {
+                    repository.updateProfile(driverProfile)
+                    navigateTo(Screen.MainDriverHome)
+                }
+            }
+            onResult(success, error)
+        }
+    }
+
+    fun logout(onComplete: () -> Unit = {}) {
+        FirebaseManager.signOut {
+            _isUserLoggedInFlow.value = false
+            _userEmailFlow.value = null
+            navigateTo(Screen.OnboardingRoleSelection)
+            onComplete()
+        }
+    }
+
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
     }

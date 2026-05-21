@@ -149,14 +149,17 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
     // Helper functions
     suspend fun updateStation(station: FuelStation) {
         dao.updateStation(station)
+        com.example.data.FirebaseManager.syncStationPriceToFirestore(station)
     }
 
     suspend fun insertRefueling(refueling: Refueling) {
         dao.insertRefueling(refueling)
+        com.example.data.FirebaseManager.syncRefuelingToFirestore(refueling)
     }
 
     suspend fun updateProfile(profile: DriverProfile) {
         dao.insertProfile(profile)
+        com.example.data.FirebaseManager.syncProfileToFirestore(profile)
     }
 
     suspend fun toggleFavorite(stationId: Int) {

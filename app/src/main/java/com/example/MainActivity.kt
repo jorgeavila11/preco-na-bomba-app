@@ -29,6 +29,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
+        // Initialize Programmatic Firebase for project #502690676185
+        com.example.data.FirebaseManager.initialize(applicationContext)
+
         // Local Persistence: Setup Room SQLite Database
         database = Room.databaseBuilder(
             applicationContext,

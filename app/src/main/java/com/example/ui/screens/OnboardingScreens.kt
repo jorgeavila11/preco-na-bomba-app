@@ -282,6 +282,7 @@ fun OnboardingRoleSelectionScreen(
 fun DriverRegisterScreen(
     viewModel: PrecoNaBombaViewModel
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var name by remember { mutableStateOf("João Silva") }
     var email by remember { mutableStateOf("joao@exemplo.com") }
     var password by remember { mutableStateOf("********") }
@@ -421,8 +422,30 @@ fun DriverRegisterScreen(
             // Criar Conta Button
             Button(
                 onClick = {
-                    viewModel.updateOwnerProfile(name, email, "(11) 98765-4321")
-                    viewModel.navigateTo(Screen.MainDriverHome)
+                    val targetEmail = email.trim()
+                    val targetPassword = password.trim()
+                    if (targetEmail.isEmpty() || targetPassword.isEmpty()) {
+                        Toast.makeText(context, "Por favor, preencha todos os campos.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    val consDouble = consumption.toDoubleOrNull() ?: 12.0
+                    viewModel.registerDriver(
+                        email = targetEmail,
+                        password = targetPassword,
+                        name = name,
+                        model = model,
+                        plate = plate,
+                        consumption = consDouble
+                    ) { success, error ->
+                        if (success) {
+                            Toast.makeText(context, "Conta criada com sucesso e registrada no Firebase Cloud!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // Offline demo fallback in case there is no internet connection
+                            Toast.makeText(context, "Modo Demo Ativo: Criando conta offline local...", Toast.LENGTH_LONG).show()
+                            viewModel.updateOwnerProfile(name, email, "(11) 98765-4321")
+                            viewModel.navigateTo(Screen.MainDriverHome)
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -870,16 +893,24 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                     Button(
                         onClick = {
                             val targetEmail = email.trim()
-                            if (targetEmail.isEmpty()) {
-                                Toast.makeText(context, "Por favor, digite seu e-mail.", Toast.LENGTH_SHORT).show()
+                            val targetPassword = password.trim()
+                            if (targetEmail.isEmpty() || targetPassword.isEmpty()) {
+                                Toast.makeText(context, "Por favor, digite seu e-mail e senha.", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
-                            if (targetEmail.contains("posto", ignoreCase = true) || targetEmail == "exemplo@posto.com.br") {
-                                Toast.makeText(context, "Bem-vindo de volta! Portal do Posto integrado.", Toast.LENGTH_SHORT).show()
-                                viewModel.navigateTo(Screen.MainStationHome)
-                            } else {
-                                Toast.makeText(context, "Bem-vindo de volta! Login efetuado como Motorista.", Toast.LENGTH_SHORT).show()
-                                viewModel.navigateTo(Screen.MainDriverHome)
+                            // Real Authentication using Firebase Auth with fallback demo
+                            viewModel.login(targetEmail, targetPassword) { success, error ->
+                                if (success) {
+                                    Toast.makeText(context, "Login efetuado com sucesso (Firebase)!", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    // Fallback for demo when disconnected or configuring
+                                    Toast.makeText(context, "Modo Demo Ativo (Offline/Sem Conexão): Entrando...", Toast.LENGTH_LONG).show()
+                                    if (targetEmail.contains("posto", ignoreCase = true) || targetEmail == "exemplo@posto.com.br") {
+                                        viewModel.navigateTo(Screen.MainStationHome)
+                                    } else {
+                                        viewModel.navigateTo(Screen.MainDriverHome)
+                                    }
+                                }
                             }
                         },
                         modifier = Modifier

@@ -48,27 +48,29 @@ fun MapMiniPreview(onNavigateToMap: () -> Unit, countNearby: Int) {
         contentAlignment = Alignment.Center
     ) {
         Canvas(modifier = Modifier.fillMaxSize()) {
-            val size = 20.dp.toPx()
-            val strokeWidth = 1.dp.toPx()
-            var x = 0f
-            while (x < this.size.width) {
-                drawLine(
-                    color = Color(0xFF94A3B8).copy(alpha = 0.2f),
-                    start = Offset(x, 0f),
-                    end = Offset(x, this.size.height),
-                    strokeWidth = strokeWidth
-                )
-                x += size
-            }
-            var y = 0f
-            while (y < this.size.height) {
-                drawLine(
-                    color = Color(0xFF94A3B8).copy(alpha = 0.2f),
-                    start = Offset(0f, y),
-                    end = Offset(this.size.width, y),
-                    strokeWidth = strokeWidth
-                )
-                y += size
+            val rawSize = 20.dp.toPx()
+            if (rawSize > 1f) {
+                val strokeWidth = 1.dp.toPx()
+                var x = 0f
+                while (x < this.size.width) {
+                    drawLine(
+                        color = Color(0xFF94A3B8).copy(alpha = 0.2f),
+                        start = Offset(x, 0f),
+                        end = Offset(x, this.size.height),
+                        strokeWidth = strokeWidth
+                    )
+                    x += rawSize
+                }
+                var y = 0f
+                while (y < this.size.height) {
+                    drawLine(
+                        color = Color(0xFF94A3B8).copy(alpha = 0.2f),
+                        start = Offset(0f, y),
+                        end = Offset(this.size.width, y),
+                        strokeWidth = strokeWidth
+                    )
+                    y += rawSize
+                }
             }
         }
 
@@ -1132,7 +1134,9 @@ fun DriverProfileArea(
                     Toast.makeText(context, "Política de privacidade atualizada em conformidade com a LGPD.", Toast.LENGTH_SHORT).show()
                 }
                 driverProfileOptionRow(Icons.Default.ExitToApp, "Sair da Conta") {
-                    viewModel.navigateTo(Screen.OnboardingRoleSelection)
+                    viewModel.logout {
+                        Toast.makeText(context, "Sessão encerrada com sucesso!", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
 
