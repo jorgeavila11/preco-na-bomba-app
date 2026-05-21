@@ -1,0 +1,1453 @@
+package com.example.ui.screens
+
+import android.widget.Toast
+import androidx.compose.animation.*
+import androidx.compose.foundation.*
+import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.example.data.*
+import com.example.ui.theme.*
+import com.example.ui.viewmodel.PrecoNaBombaViewModel
+import com.example.ui.viewmodel.Screen
+
+@Composable
+fun MapMiniPreview(onNavigateToMap: () -> Unit, countNearby: Int) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(112.dp)
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color(0xFFE2E8F0))
+            .border(1.dp, BorderSlate300, RoundedCornerShape(16.dp))
+            .clickable { onNavigateToMap() },
+        contentAlignment = Alignment.Center
+    ) {
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            val size = 20.dp.toPx()
+            val strokeWidth = 1.dp.toPx()
+            var x = 0f
+            while (x < this.size.width) {
+                drawLine(
+                    color = Color(0xFF94A3B8).copy(alpha = 0.2f),
+                    start = Offset(x, 0f),
+                    end = Offset(x, this.size.height),
+                    strokeWidth = strokeWidth
+                )
+                x += size
+            }
+            var y = 0f
+            while (y < this.size.height) {
+                drawLine(
+                    color = Color(0xFF94A3B8).copy(alpha = 0.2f),
+                    start = Offset(0f, y),
+                    end = Offset(this.size.width, y),
+                    strokeWidth = strokeWidth
+                )
+                y += size
+            }
+        }
+
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(Icons.Default.LocationOn, null, tint = Color(0xFF475569), modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Alternar para o mapa",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium,
+                color = Color(0xFF475569)
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .padding(8.dp)
+                .background(Color.White, RoundedCornerShape(6.dp))
+                .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(6.dp))
+                .padding(horizontal = 8.dp, vertical = 4.dp)
+        ) {
+            Text(
+                text = "$countNearby postos próximos",
+                fontSize = 11.sp,
+                fontWeight = FontWeight.Bold,
+                color = CobaltPrimary
+            )
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun MainDriverHome(
+    viewModel: PrecoNaBombaViewModel
+) {
+    val stations by viewModel.allStations.collectAsState()
+    val searchQuery by viewModel.searchQuery.collectAsState()
+    val activeFilter by viewModel.selectedFuelFilter.collectAsState()
+    val context = LocalContext.current
+
+    // Apply filtering logic
+    val filteredStations = remember(stations, searchQuery, activeFilter) {
+        var list = stations.filter {
+            it.name.contains(searchQuery, ignoreCase = true) ||
+                    it.address.contains(searchQuery, ignoreCase = true)
+        }
+        when (activeFilter) {
+            "Gasolina" -> list = list.sortedBy { it.priceGasoline }
+            "Etanol" -> list = list.sortedBy { it.priceEthanol }
+            "Diesel" -> list = list.sortedBy { it.priceDiesel }
+            "Menor Preço" -> list = list.sortedBy { minOf(it.priceGasoline, it.priceEthanol) }
+            "Mais Próximo" -> list = list.sortedBy { it.distanceKm }
+        }
+        list
+    }
+
+    // Identify busiest/cheapest station for dynamic "MAIS BARATO" high contrast highlighter
+    val cheapestStationId = remember(filteredStations, activeFilter) {
+        if (filteredStations.isEmpty()) null
+        else {
+            val keyFilter = if (activeFilter == "Menor Preço") "Gasolina" else activeFilter
+            when (keyFilter) {
+                "Gasolina" -> filteredStations.minByOrNull { it.priceGasoline }?.id
+                "Etanol" -> filteredStations.minByOrNull { it.priceEthanol }?.id
+                "Diesel" -> filteredStations.minByOrNull { it.priceDiesel }?.id
+                else -> filteredStations.minByOrNull { minOf(it.priceGasoline, it.priceEthanol) }?.id
+            }
+        }
+    }
+
+    Scaffold(
+        topBar = {
+            Column(
+                modifier = Modifier
+                    .background(MaterialTheme.colorScheme.background)
+                    .statusBarsPadding()
+            ) {
+                // Main Header Title Row
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .clickable {
+                                Toast.makeText(context, "Menu em breve!", Toast.LENGTH_SHORT).show()
+                            },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "≡",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+
+                    Text(
+                        text = "Preço na Bomba",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onBackground,
+                        modifier = Modifier.padding(horizontal = 4.dp)
+                    )
+
+                    IconButton(
+                        onClick = { viewModel.navigateTo(Screen.DriverMap) },
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(MaterialTheme.colorScheme.primaryContainer, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Search,
+                            contentDescription = "Visualizar no Mapa",
+                            tint = MaterialTheme.colorScheme.onPrimaryContainer,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+
+                // Search Bar Input Field
+                OutlinedTextField(
+                    value = searchQuery,
+                    onValueChange = { viewModel.setSearchQuery(it) },
+                    placeholder = { Text("Buscar endereço ou posto...", color = TextColVariant) },
+                    leadingIcon = { Icon(Icons.Default.Search, null, tint = TextColVariant) },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 4.dp),
+                    shape = RoundedCornerShape(12.dp),
+                    singleLine = true,
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = Color.White,
+                        unfocusedContainerColor = Color.White,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = BorderSlate100,
+                        focusedTextColor = TextColOnSurface,
+                        unfocusedTextColor = TextColOnSurface
+                    )
+                )
+
+                // Filter Rows
+                val filterOptions = listOf("Gasolina", "Etanol", "Diesel", "Menor Preço", "Mais Próximo")
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(filterOptions) { opt ->
+                        val isSelected = activeFilter == opt
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primaryContainer else Color.White)
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isSelected) Color.Transparent else BorderSlate300,
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .clickable { viewModel.setFuelFilter(opt) }
+                                .padding(horizontal = 14.dp, vertical = 8.dp)
+                        ) {
+                            Text(
+                                text = opt,
+                                fontSize = 13.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else TextColOnSurface
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        bottomBar = {
+            DriverBottomNavigationBar(Screen.MainDriverHome) { screen ->
+                viewModel.navigateTo(screen)
+            }
+        },
+        modifier = Modifier.testTag("main_driver_home")
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                contentPadding = PaddingValues(bottom = 24.dp)
+            ) {
+                // Header Map preview block inside column
+                item {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    MapMiniPreview(
+                        onNavigateToMap = { viewModel.navigateTo(Screen.DriverMap) },
+                        countNearby = filteredStations.size
+                    )
+                }
+
+                // Header Content Sub-title
+                item {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Postos Próximos",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "Ver no mapa",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.clickable { viewModel.navigateTo(Screen.DriverMap) }
+                        )
+                    }
+                }
+
+                if (filteredStations.isEmpty()) {
+                    item {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(200.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Search, null, modifier = Modifier.size(48.dp), tint = Color.LightGray)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    "Nenhum posto encontrado.",
+                                    color = Color.Gray,
+                                    fontSize = 14.sp
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    items(filteredStations) { station ->
+                        val isCheapest = station.id == cheapestStationId
+                        StationCardItem(
+                            station = station,
+                            activeFilter = activeFilter,
+                            onFavoriteToggle = { viewModel.toggleFavorite(station.id) },
+                            onSelectOnMap = {
+                                viewModel.selectStation(station.id)
+                                viewModel.navigateTo(Screen.DriverMap)
+                            },
+                            isCheapest = isCheapest
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun StationCardItem(
+    station: FuelStation,
+    activeFilter: String,
+    onFavoriteToggle: () -> Unit,
+    onSelectOnMap: () -> Unit,
+    isCheapest: Boolean = false
+) {
+    // Custom Brand initials & colors to match high contrast design theme
+    val (brandText, brandBg, brandTextCol) = when {
+        station.brand.contains("shell", ignoreCase = true) || station.name.contains("shell", ignoreCase = true) ->
+            Triple("SH", Color(0xFFFDE047), Color(0xFF1E293B)) // Yellow
+        station.brand.contains("ipiranga", ignoreCase = true) || station.name.contains("ipiranga", ignoreCase = true) ->
+            Triple("IP", Color(0xFFF97316), Color.White) // Orange
+        station.brand.contains("petrobras", ignoreCase = true) || station.name.contains("petrobras", ignoreCase = true) ->
+            Triple("BR", Color(0xFF2563EB), Color.White) // Blue
+        else ->
+            Triple("PT", Color(0xFF94A3B8), Color.White) // Slate gray default
+    }
+
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .testTag("station_card_${station.id}")
+            .clickable { onSelectOnMap() }
+            .border(1.dp, BorderSlate100, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                // Header layout
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(32.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(brandBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = brandText,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Black,
+                            color = brandTextCol
+                        )
+                    }
+
+                    Column {
+                        Text(
+                            text = station.name,
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextColOnSurface
+                        )
+                        Text(
+                            text = "A ${station.distanceKm} KM • ${station.address.uppercase()}",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Medium,
+                            color = TextColVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
+                // Price blocks row
+                Row(
+                    modifier = Modifier.padding(top = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    // Gasoline Block
+                    val isGasActive = activeFilter == "Gasolina" || activeFilter == "Menor Preço"
+                    val isGasCheapest = isGasActive && isCheapest
+                    Column {
+                        Text(
+                            text = "GASOLINA",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextColVariant
+                        )
+                        Text(
+                            text = String.format("R$ %.2f", station.priceGasoline),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isGasCheapest) HighDensityGreen else TextColOnSurface,
+                            letterSpacing = (-0.5).sp
+                        )
+                    }
+
+                    // Vertical Separator 1
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(24.dp)
+                            .background(BorderSlate100)
+                    )
+
+                    // Ethanol Block
+                    val isEthActive = activeFilter == "Etanol" || activeFilter == "Menor Preço"
+                    val isEthCheapest = isEthActive && isCheapest
+                    Column {
+                        Text(
+                            text = "ETANOL",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextColVariant
+                        )
+                        Text(
+                            text = String.format("R$ %.2f", station.priceEthanol),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isEthCheapest) HighDensityGreen else TextColOnSurface,
+                            letterSpacing = (-0.5).sp
+                        )
+                    }
+
+                    // Vertical Separator 2
+                    Box(
+                        modifier = Modifier
+                            .width(1.dp)
+                            .height(24.dp)
+                            .background(BorderSlate100)
+                    )
+
+                    // Diesel Block
+                    val isDslActive = activeFilter == "Diesel"
+                    val isDslCheapest = isDslActive && isCheapest
+                    Column {
+                        Text(
+                            text = "DIESEL",
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = TextColVariant
+                        )
+                        Text(
+                            text = String.format("R$ %.2f", station.priceDiesel),
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDslCheapest) HighDensityGreen else TextColOnSurface,
+                            letterSpacing = (-0.5).sp
+                        )
+                    }
+                }
+            }
+
+            // Right side arrow & actions
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(4.dp)
+            ) {
+                if (isCheapest) {
+                    Text(
+                        text = "MAIS BARATO",
+                        fontSize = 10.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = HighDensityGreen
+                    )
+                }
+
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    IconButton(
+                        onClick = onFavoriteToggle,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Favoritar",
+                            tint = if (station.isFavorite) Color(0xFFFDE047) else Color.LightGray,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(36.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primaryContainer)
+                            .clickable { onSelectOnMap() },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "➜",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+
+// 2. Explorable Dynamic Map screen
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DriverMap(
+    viewModel: PrecoNaBombaViewModel
+) {
+    val stations by viewModel.allStations.collectAsState()
+    val selectedId by viewModel.selectedStationId.collectAsState()
+    val context = LocalContext.current
+
+    val currentSelectedStation = remember(stations, selectedId) {
+        stations.find { it.id == selectedId } ?: stations.firstOrNull()
+    }
+
+    Scaffold(
+        topBar = {
+            // Quick input overlays
+            Card(
+                modifier = Modifier
+                    .statusBarsPadding()
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(14.dp),
+                elevation = CardDefaults.cardElevation(4.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.95f))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 12.dp, vertical = 4.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Search,
+                        contentDescription = null,
+                        modifier = Modifier.padding(end = 8.dp),
+                        tint = colorSchemePrimaryTint(MaterialTheme.colorScheme.primary)
+                    )
+                    Text(
+                        text = "Buscar postos ou endereços...",
+                        fontSize = 14.sp,
+                        color = Color.Gray,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = { Toast.makeText(context, "Notificações de preço ativas!", Toast.LENGTH_SHORT).show() }) {
+                        Icon(Icons.Default.Notifications, null, tint = Color.Gray)
+                    }
+                }
+            }
+        },
+        bottomBar = {
+            Column {
+                // Bottom Details Card
+                currentSelectedStation?.let { station ->
+                    AnimatedVisibility(
+                        visible = true,
+                        enter = slideInVertically { it } + fadeIn(),
+                        exit = slideOutVertically { it } + fadeOut()
+                    ) {
+                        Card(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                                .testTag("map_station_details_sheet"),
+                            shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Box(
+                                    modifier = Modifier
+                                        .width(40.dp)
+                                        .height(4.dp)
+                                        .background(Color(0xFFE2E8F0), CircleShape)
+                                        .align(Alignment.CenterHorizontally)
+                                        .padding(bottom = 12.dp)
+                                )
+
+                                Row(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 10.dp),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = station.name,
+                                            fontSize = 20.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color.Black
+                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.padding(top = 4.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.LocationOn,
+                                                contentDescription = null,
+                                                tint = Color.Gray,
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            Text(
+                                                text = station.address,
+                                                fontSize = 12.sp,
+                                                color = Color.Gray,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                        }
+                                    }
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFFE8F5E9), RoundedCornerShape(6.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "ABERTO",
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = Color(0xFF2E7D32)
+                                        )
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                // Fast Prices Row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                ) {
+                                    Card(
+                                        modifier = Modifier.weight(1f),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
+                                            Column {
+                                                Text("Gasolina Comum", fontSize = 10.sp, color = Color.Gray)
+                                                Text(String.format("R$ %.2f", station.priceGasoline), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                            }
+                                        }
+                                    }
+
+                                    Card(
+                                        modifier = Modifier.weight(1f),
+                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.padding(12.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.secondary)
+                                            Column {
+                                                Text("Etanol", fontSize = 10.sp, color = Color.Gray)
+                                                Text(String.format("R$ %.2f", station.priceEthanol), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                            }
+                                        }
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                // Nav actions row
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                                ) {
+                                    Button(
+                                        onClick = {
+                                            Toast.makeText(context, "Calculando melhor trajeto com GPS no Google Maps!", Toast.LENGTH_LONG).show()
+                                        },
+                                        modifier = Modifier
+                                            .weight(1f)
+                                            .height(52.dp),
+                                        shape = RoundedCornerShape(12.dp),
+                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(Icons.Default.LocationOn, null, tint = Color.White)
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text("Como Chegar", fontWeight = FontWeight.Bold, color = Color.White)
+                                        }
+                                    }
+
+                                    IconButton(
+                                        onClick = { viewModel.toggleFavorite(station.id) },
+                                        modifier = Modifier
+                                            .size(52.dp)
+                                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Favorite,
+                                            contentDescription = "Favoritar",
+                                            tint = if (station.isFavorite) Color.Red else Color.Gray
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                DriverBottomNavigationBar(Screen.DriverMap) { screen ->
+                    viewModel.navigateTo(screen)
+                }
+            }
+        },
+        modifier = Modifier.testTag("driver_map_screen")
+    ) { innerPadding ->
+        // Styled canvas map vector overlay
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(Color(0xFFE2E8F0)) // Light background grid
+        ) {
+            // Draw city grid layout canvas
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                val gridColor = Color(0xFFCBD5E1)
+                
+                // Draw horizontal streets
+                drawLine(gridColor, Offset(0f, size.height * 0.2f), Offset(size.width, size.height * 0.2f), strokeWidth = 12f)
+                drawLine(gridColor, Offset(0f, size.height * 0.5f), Offset(size.width, size.height * 0.5f), strokeWidth = 24f)
+                drawLine(gridColor, Offset(0f, size.height * 0.8f), Offset(size.width, size.height * 0.8f), strokeWidth = 16f)
+
+                // Draw vertical streets
+                drawLine(gridColor, Offset(size.width * 0.25f, 0f), Offset(size.width * 0.25f, size.height), strokeWidth = 14f)
+                drawLine(gridColor, Offset(size.width * 0.65f, 0f), Offset(size.width * 0.65f, size.height), strokeWidth = 18f)
+
+                // Draw river
+                val riverColor = Color(0xFFA5F3FC)
+                drawLine(riverColor, Offset(0f, size.height * 0.1f), Offset(size.width, size.height * 0.3f), strokeWidth = 40f)
+            }
+
+            // Interactive Pins mapped visually on top
+            val widthLimit = 320.dp
+            val heightLimit = 450.dp
+            stations.forEach { station ->
+                val xPercent = when (station.id % 3) {
+                    0 -> 0.2f
+                    1 -> 0.7f
+                    else -> 0.55f
+                }
+                val yPercent = when (station.id % 4) {
+                    0 -> 0.15f
+                    1 -> 0.45f
+                    2 -> 0.72f
+                    else -> 0.6f
+                }
+
+                val hasActiveMarkerSelected = station.id == selectedId
+
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .offset(
+                            x = (320 * xPercent).dp,
+                            y = (450 * yPercent).dp
+                        )
+                        .clickable { viewModel.selectStation(station.id) }
+                ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        // Tag box showing live price
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary)
+                                .border(
+                                    2.dp,
+                                    Color.White,
+                                    RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 8.dp, vertical = 4.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = String.format("R$ %.2f", station.priceGasoline),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (hasActiveMarkerSelected) Color.Black else Color.White
+                            )
+                        }
+
+                        // Bottom indicator arrow
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(
+                                    if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
+                                    RoundedCornerShape(bottomStart = 2.dp)
+                                )
+                                .border(2.dp, Color.White, RoundedCornerShape(bottomStart = 2.dp))
+                        )
+                    }
+                }
+            }
+
+            // Floating Controls: Zoom in, Zoom out, My Location
+            Column(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .padding(end = 16.dp, bottom = 120.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                IconButton(
+                    onClick = { Toast.makeText(context, "Aumentando zoom!", Toast.LENGTH_SHORT).show() },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color.White, RoundedCornerShape(12.dp))
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                ) {
+                    Icon(Icons.Default.Add, "Zoom In", tint = MaterialTheme.colorScheme.primary)
+                }
+
+                // Styled zoom-out subtraction text box layout
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
+                        .clickable { Toast.makeText(context, "Diminuindo zoom!", Toast.LENGTH_SHORT).show() },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("-", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
+                }
+
+                IconButton(
+                    onClick = { Toast.makeText(context, "Sua localização localizada!", Toast.LENGTH_SHORT).show() },
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
+                ) {
+                    Icon(Icons.Default.LocationOn, "Minha Localização", tint = Color.White)
+                }
+            }
+        }
+    }
+}
+
+// 3. Driver Profile with interactive Corolla dashboard card
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DriverProfileArea(
+    viewModel: PrecoNaBombaViewModel
+) {
+    val currentProfile by viewModel.profile.collectAsState()
+    val context = LocalContext.current
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Meu Perfil", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = { Toast.makeText(context, "Sem novas notificações", Toast.LENGTH_SHORT).show() }) {
+                        Icon(Icons.Default.Notifications, null)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        bottomBar = {
+            DriverBottomNavigationBar(Screen.DriverProfileArea) { screen ->
+                viewModel.navigateTo(screen)
+            }
+        },
+        modifier = Modifier.testTag("driver_profile_screen")
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Profile Info Header with circular avatar
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Avatar representation
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape)
+                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Person,
+                        contentDescription = "Avatar",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(48.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = currentProfile?.name ?: "João Silva",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Black
+                        )
+                        if (currentProfile?.isPremium == true) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text("PRO", fontSize = 9.sp, fontWeight = FontWeight.Black, color = Color.Black)
+                            }
+                        }
+                    }
+                    Text(
+                        text = "São Paulo, SP",
+                        fontSize = 14.sp,
+                        color = Color.Gray
+                    )
+                }
+            }
+
+            // Legal & Private inputs
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text("INFORMAÇÕES PESSOAIS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+
+                    // Email block
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("E-mail", fontSize = 11.sp, color = Color.Gray)
+                            Text(currentProfile?.email ?: "joao.silva@email.com", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Phone block
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Phone, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Telefone", fontSize = 11.sp, color = Color.Gray)
+                            Text(currentProfile?.phone ?: "(11) 98765-4321", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+
+            // Interactive vehicle card
+            Text("MEU VEÍCULO", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { viewModel.navigateTo(Screen.DriverPrivateArea) }
+                    .testTag("driver_vehicle_dashboard_card"),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp)
+                ) {
+                    Column {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.Top
+                        ) {
+                            Column {
+                                Text("MODELO", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Medium)
+                                Text(
+                                    text = currentProfile?.vehicleModel ?: "Toyota Corolla",
+                                    fontSize = 22.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+
+                            Box(
+                                modifier = Modifier
+                                    .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 10.dp, vertical = 6.dp)
+                            ) {
+                                Text(
+                                    text = currentProfile?.vehiclePlate ?: "ABC-1234",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.Black,
+                                    letterSpacing = 1.sp
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(24.dp))
+
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(32.dp)) {
+                            Column {
+                                Text("CONSUMO MÉDIO", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Medium)
+                                Text(
+                                    text = "${currentProfile?.averageConsumption ?: 12.0} km/L",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+
+                            Column {
+                                Text("TIPO COMBUSTÍVEL", fontSize = 10.sp, color = Color.White.copy(alpha = 0.7f), fontWeight = FontWeight.Medium)
+                                Text(
+                                    text = currentProfile?.fuelType ?: "Flex",
+                                    fontSize = 16.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Favorites quick link
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable {
+                        viewModel.setFuelFilter("Favoritos")
+                        viewModel.navigateTo(Screen.MainDriverHome)
+                    },
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.1f)),
+                border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.3f)),
+                shape = RoundedCornerShape(16.dp)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, "Favoritos", tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text("Postos Favoritos", fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+                    Icon(Icons.Default.PlayArrow, null, tint = Color.Gray)
+                }
+            }
+
+            // Account config buttons
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Text("CONFIGURAÇÕES DA CONTA", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray, modifier = Modifier.padding(bottom = 8.dp))
+
+                driverProfileOptionRow(Icons.Default.Lock, "Alterar Senha") {
+                    Toast.makeText(context, "Funcionalidade Premium: Alterar Senha!", Toast.LENGTH_SHORT).show()
+                }
+                driverProfileOptionRow(Icons.Default.Info, "Privacidade") {
+                    Toast.makeText(context, "Política de privacidade atualizada em conformidade com a LGPD.", Toast.LENGTH_SHORT).show()
+                }
+                driverProfileOptionRow(Icons.Default.ExitToApp, "Sair da Conta") {
+                    viewModel.navigateTo(Screen.OnboardingRoleSelection)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+        }
+    }
+}
+
+@Composable
+fun driverProfileOptionRow(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() }
+            .padding(vertical = 14.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(icon, null, tint = Color.Gray, modifier = Modifier.size(20.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(title, fontSize = 15.sp, color = Color.Black, fontWeight = FontWeight.Medium)
+        }
+        Icon(Icons.Default.PlayArrow, null, tint = Color.LightGray)
+    }
+}
+
+// 4. Driver's Private dashboard
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun DriverPrivateArea(
+    viewModel: PrecoNaBombaViewModel
+) {
+    val currentProfile by viewModel.profile.collectAsState()
+    val refuelingLogs by viewModel.allRefuelings.collectAsState()
+    val context = LocalContext.current
+    var isLogDialogOpen by remember { mutableStateOf(false) }
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Área do Motorista", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.navigateTo(Screen.DriverProfileArea) }) {
+                        Icon(Icons.Default.ArrowBack, null)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
+            )
+        },
+        bottomBar = {
+            DriverBottomNavigationBar(Screen.DriverProfileArea) { screen ->
+                viewModel.navigateTo(screen)
+            }
+        },
+        modifier = Modifier.testTag("driver_private_screen")
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .background(MaterialTheme.colorScheme.background)
+        ) {
+            // Corolla specs module
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White)
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column {
+                        Text(currentProfile?.vehicleModel ?: "Toyota Corolla", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Text("Placa: ${currentProfile?.vehiclePlate ?: "ABC-1234"}", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 6.dp)
+                        ) {
+                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("Consumo Médio: 12km/L", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f), RoundedCornerShape(8.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
+                    }
+                }
+            }
+
+            // Inform New Price CTA
+            Button(
+                onClick = { isLogDialogOpen = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp)
+                    .height(54.dp)
+                    .testTag("driver_add_refueling_cta"),
+                shape = RoundedCornerShape(12.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Default.Add, null, tint = Color.White)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Informar Novo Preço", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Transaction log head
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Histórico de Abastecimentos",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Ver tudo",
+                    fontSize = 13.sp,
+                    color = MaterialTheme.colorScheme.primary,
+                    fontWeight = FontWeight.Bold,
+                    modifier = Modifier.clickable { Toast.makeText(context, "Histórico completo em sincronia!", Toast.LENGTH_SHORT).show() }
+                )
+            }
+
+            if (refuelingLogs.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text("Nenhum abastecimento logado.", color = Color.Gray)
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .weight(1f)
+                        .padding(horizontal = 16.dp),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    items(refuelingLogs) { log ->
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White)
+                        ) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(44.dp)
+                                        .background(MaterialTheme.colorScheme.background, RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
+                                }
+
+                                Spacer(modifier = Modifier.width(16.dp))
+
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween
+                                    ) {
+                                        Text(log.stationName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
+                                        Text(String.format("R$ %.2f", log.totalPaid), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
+                                    }
+                                    Text(log.date, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        modifier = Modifier.padding(top = 4.dp),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
+                                    ) {
+                                        Text("${log.liters} L", fontSize = 12.sp, color = Color.Gray)
+                                        Text("|", fontSize = 12.sp, color = Color.LightGray)
+                                        Text(String.format("R$ %.2f/L", log.pricePerLiter), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Refueling Logger Trigger Dialog popup
+    if (isLogDialogOpen) {
+        var inputStation by remember { mutableStateOf("") }
+        var inputLiters by remember { mutableStateOf("") }
+        var inputPrice by remember { mutableStateOf("") }
+
+        AlertDialog(
+            onDismissRequest = { isLogDialogOpen = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.logStationName.value = inputStation
+                        viewModel.logLiters.value = inputLiters
+                        viewModel.logPricePerLiter.value = inputPrice
+                        val isSaved = viewModel.saveRefueling("Hoje • 12:00")
+                        if (isSaved) {
+                            isLogDialogOpen = false
+                            Toast.makeText(context, "Preço adicionado ao banco!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Por favor preencha os campos!", Toast.LENGTH_SHORT).show()
+                        }
+                    },
+                    modifier = Modifier.testTag("dialog_save_refueling")
+                ) {
+                    Text("Salvar")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isLogDialogOpen = false }) {
+                    Text("Cancelar")
+                }
+            },
+            title = { Text("Registrar Preço na Bomba", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedTextField(
+                        value = inputStation,
+                        onValueChange = { inputStation = it },
+                        label = { Text("Nome do Posto") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = inputLiters,
+                        onValueChange = { inputLiters = it },
+                        label = { Text("Litros abastecidos") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = inputPrice,
+                        onValueChange = { inputPrice = it },
+                        label = { Text("Preço por litro") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun DriverBottomNavigationBar(
+    currentScreen: Screen,
+    onTabSelected: (Screen) -> Unit
+) {
+    NavigationBar(
+        containerColor = Color.White,
+        tonalElevation = 8.dp
+    ) {
+        NavigationBarItem(
+            selected = currentScreen == Screen.MainDriverHome,
+            onClick = { onTabSelected(Screen.MainDriverHome) },
+            icon = { Icon(Icons.Default.Home, null) },
+            label = { Text("Início", fontSize = 10.sp) }
+        )
+
+        NavigationBarItem(
+            selected = currentScreen == Screen.DriverMap,
+            onClick = { onTabSelected(Screen.DriverMap) },
+            icon = { Icon(Icons.Default.LocationOn, null) },
+            label = { Text("Mapa", fontSize = 10.sp) }
+        )
+
+        NavigationBarItem(
+            selected = currentScreen == Screen.PremiumPromotions,
+            onClick = { onTabSelected(Screen.PremiumPromotions) },
+            icon = { Icon(Icons.Default.Star, null) },
+            label = { Text("Promoções", fontSize = 10.sp) }
+        )
+
+        NavigationBarItem(
+            selected = currentScreen == Screen.DriverProfileArea,
+            onClick = { onTabSelected(Screen.DriverProfileArea) },
+            icon = { Icon(Icons.Default.Person, null) },
+            label = { Text("Perfil", fontSize = 10.sp) }
+        )
+    }
+}
+
+@Composable
+fun colorSchemePrimaryTint(primary: Color) = if (isSystemInDarkTheme()) Color.White else primary

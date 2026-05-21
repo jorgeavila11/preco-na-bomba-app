@@ -1,0 +1,6 @@
+{
+  "name": "Preço na Bomba",
+  "description": "Encontre combustível barato perto de você. Portal do Motorista e do Posto de Combustíveis em tempo real.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
