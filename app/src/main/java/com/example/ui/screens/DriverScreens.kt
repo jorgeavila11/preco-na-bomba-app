@@ -21,6 +21,7 @@ import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
@@ -335,6 +336,38 @@ fun MainDriverHome(
     val averageConsumption = profileState?.averageConsumption ?: 12.0
     val context = LocalContext.current
 
+    val startupLocationPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineGranted || coarseGranted) {
+            requestSystemLocation(context, viewModel)
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val fineGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(
+            context,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        ) == PackageManager.PERMISSION_GRANTED
+
+        if (fineGranted || coarseGranted) {
+            requestSystemLocation(context, viewModel)
+        } else {
+            startupLocationPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
     // Apply filtering logic
     val filteredStations = remember(stations, searchQuery, activeFilter) {
         var list = stations.filter {
@@ -504,10 +537,6 @@ fun MainDriverHome(
                     )
                 }
 
-                item {
-                    DriverLocationPanel(viewModel = viewModel)
-                }
-
                 // Header Content Sub-title
                 item {
                     Row(
@@ -586,16 +615,50 @@ fun StationCardItem(
 ) {
     val context = LocalContext.current
     // Custom Brand initials & colors to match high contrast design theme
-    val (brandText, brandBg, brandTextCol) = when {
-        station.brand.contains("shell", ignoreCase = true) || station.name.contains("shell", ignoreCase = true) ->
-            Triple("SH", Color(0xFFFDE047), Color(0xFF1E293B)) // Yellow
-        station.brand.contains("ipiranga", ignoreCase = true) || station.name.contains("ipiranga", ignoreCase = true) ->
-            Triple("IP", Color(0xFFF97316), Color.White) // Orange
-        station.brand.contains("petrobras", ignoreCase = true) || station.name.contains("petrobras", ignoreCase = true) ->
-            Triple("BR", Color(0xFF2563EB), Color.White) // Blue
-        else ->
-            Triple("PT", Color(0xFF94A3B8), Color.White) // Slate gray default
+    val brandText: String
+    val brandBg: Color
+    val brandTextCol: Color
+    val brandResource: String
+    when {
+        station.brand.contains("shell", ignoreCase = true) || station.name.contains("shell", ignoreCase = true) -> {
+            brandText = "SH"
+            brandBg = Color(0xFFFDE047)
+            brandTextCol = Color(0xFF1E293B)
+            brandResource = "Shell"
+        }
+        station.brand.contains("ipiranga", ignoreCase = true) || station.name.contains("ipiranga", ignoreCase = true) -> {
+            brandText = "IP"
+            brandBg = Color(0xFFF97316)
+            brandTextCol = Color.White
+            brandResource = "Ipiranga"
+        }
+        station.brand.contains("petrobras", ignoreCase = true) || station.name.contains("petrobras", ignoreCase = true) -> {
+            brandText = "BR"
+            brandBg = Color(0xFF047857)
+            brandTextCol = Color.White
+            brandResource = "Petrobras"
+        }
+        else -> {
+            brandText = "PT"
+            brandBg = Color(0xFF64748B)
+            brandTextCol = Color.White
+            brandResource = "Posto"
+        }
     }
+
+    val activePrice = when (activeFilter) {
+        "Etanol" -> station.priceEthanol
+        "Diesel" -> station.priceDiesel
+        else -> station.priceGasoline
+    }
+
+    val fuelLabel = when (activeFilter) {
+        "Etanol" -> "ETANOL"
+        "Diesel" -> "DIESEL"
+        else -> "GASOLINA"
+    }
+
+    val estCost = (station.distanceKm / averageConsumption) * activePrice
 
     Card(
         modifier = Modifier
@@ -613,229 +676,150 @@ fun StationCardItem(
         shape = RoundedCornerShape(16.dp),
         elevation = CardDefaults.cardElevation(defaultElevation = if (station.isPartner) 2.dp else 1.dp)
     ) {
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(14.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // Header layout
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
+            // Raw layout: Brand Logo Box at Left + Column Content at Center/Right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // 1. White card rounded box for Brand Logo (visual match to the Petrobras/BR card at left of image)
+                Box(
+                    modifier = Modifier
+                        .size(54.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White)
+                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp)),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Box(
-                        modifier = Modifier
-                            .size(32.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(brandBg),
-                        contentAlignment = Alignment.Center
-                    ) {
+                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Text(
                             text = brandText,
-                            fontSize = 11.sp,
+                            fontSize = 15.sp,
                             fontWeight = FontWeight.Black,
-                            color = brandTextCol
+                            color = brandTextCol,
+                            modifier = Modifier
+                                .background(brandBg, RoundedCornerShape(4.dp))
+                                .padding(horizontal = 5.dp, vertical = 2.dp)
+                        )
+                        Text(
+                            text = brandResource.uppercase(),
+                            fontSize = 8.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
+                }
 
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp),
-                            modifier = Modifier.fillMaxWidth()
+                // 2. Middle information block (Title, Sub-header, Row of Tags)
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    // Title
+                    Text(
+                        text = station.name,
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextColOnSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
+                    // Partner Premium subheader (in Gold/Yellow Caps)
+                    if (station.isPartner) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Default.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFEAB308), // Gold
+                                modifier = Modifier.size(11.dp)
+                            )
+                            Spacer(modifier = Modifier.width(3.dp))
+                            Text(
+                                text = "PARCEIRO PREMIUM",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFFD97706) // Yellow Gold
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(2.dp))
+
+                    // Row of tags: [ABERTO 24H] [Distance] [Custo button/badge]
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        // Tag: Open hours (light green background, green text)
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFFF0FDF4), RoundedCornerShape(6.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
                         ) {
                             Text(
-                                text = station.name,
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextColOnSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis,
-                                modifier = Modifier.weight(1f, fill = false)
+                                text = station.openHours.uppercase(),
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF16A34A),
+                                maxLines = 1
                             )
-                            if (station.isPartner) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                ) {
-                                    Text(
-                                        "⭐ Parceiro",
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.Black,
-                                        color = Color.Black
-                                    )
-                                }
-                            }
                         }
-                        Text(
-                            text = "A ${station.distanceKm} KM • ${station.address.uppercase()}",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Medium,
-                            color = TextColVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                }
 
-                // Price blocks row
-                Row(
-                    modifier = Modifier.padding(top = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    // Gasoline Block
-                    val isGasActive = activeFilter == "Gasolina" || activeFilter == "Menor Preço"
-                    val isGasCheapest = isGasActive && isCheapest
-                    Column {
+                        // Real-time calculated / automatic distance text (Aesthetic match: gray text)
                         Text(
-                            text = "GASOLINA",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextColVariant
-                        )
-                        Text(
-                            text = String.format("R$ %.2f", station.priceGasoline),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isGasCheapest) HighDensityGreen else TextColOnSurface,
-                            letterSpacing = (-0.5).sp
-                        )
-                    }
-
-                    // Vertical Separator 1
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(24.dp)
-                            .background(BorderSlate100)
-                    )
-
-                    // Ethanol Block
-                    val isEthActive = activeFilter == "Etanol" || activeFilter == "Menor Preço"
-                    val isEthCheapest = isEthActive && isCheapest
-                    Column {
-                        Text(
-                            text = "ETANOL",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextColVariant
-                        )
-                        Text(
-                            text = String.format("R$ %.2f", station.priceEthanol),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isEthCheapest) HighDensityGreen else TextColOnSurface,
-                            letterSpacing = (-0.5).sp
-                        )
-                    }
-
-                    // Vertical Separator 2
-                    Box(
-                        modifier = Modifier
-                            .width(1.dp)
-                            .height(24.dp)
-                            .background(BorderSlate100)
-                    )
-
-                    // Diesel Block
-                    val isDslActive = activeFilter == "Diesel"
-                    val isDslCheapest = isDslActive && isCheapest
-                    Column {
-                        Text(
-                            text = "DIESEL",
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextColVariant
-                        )
-                        Text(
-                            text = String.format("R$ %.2f", station.priceDiesel),
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDslCheapest) HighDensityGreen else TextColOnSurface,
-                            letterSpacing = (-0.5).sp
-                        )
-                    }
-                }
-
-                // Estimated Travel Cost calculation (Rule 2)
-                Spacer(modifier = Modifier.height(6.dp))
-                if (isPremium) {
-                    val activePrice = when (activeFilter) {
-                        "Etanol" -> station.priceEthanol
-                        "Diesel" -> station.priceDiesel
-                        else -> station.priceGasoline
-                    }
-                    val estCost = (station.distanceKm / averageConsumption) * activePrice
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFF0FDF4), RoundedCornerShape(6.dp))
-                            .border(0.5.dp, Color(0xFF16A34A).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Info,
-                            contentDescription = "Custo Estimado",
-                            tint = Color(0xFF16A34A),
-                            modifier = Modifier.size(12.dp)
-                        )
-                        Text(
-                            text = String.format("Gasto estimado: R$ %.2f • Distância: %.1f km", estCost, station.distanceKm),
+                            text = String.format("%.1f km", station.distanceKm),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.Bold,
-                            color = Color(0xFF15803D)
+                            color = Color(0xFF64748B),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.weight(1f, fill = false)
                         )
-                    }
-                } else {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(4.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFFFEF3C7), RoundedCornerShape(6.dp))
-                            .border(0.5.dp, Color(0xFFD97706).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
-                            .clickable {
-                                Toast.makeText(context, "Calcular custo da viagem é um recurso exclusivo do Plano Premium!", Toast.LENGTH_LONG).show()
-                            }
-                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Lock,
-                            contentDescription = "🔒 Recurso Premium",
-                            tint = Color(0xFFD97706),
-                            modifier = Modifier.size(11.dp)
-                        )
-                        Text(
-                            text = "Calcular custo de viagem (Recurso Premium)",
-                            fontSize = 10.5.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFFB45309)
-                        )
+
+                        // Badge: Blue Custo badge
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .background(Color(0xFFEFF6FF), RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(6.dp))
+                                .clickable {
+                                    if (!isPremium) {
+                                        Toast.makeText(context, "Calculadora de gastos de combustível em tempo real é exclusiva para membros Premium!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                .padding(horizontal = 6.dp, vertical = 3.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Send,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier
+                                    .size(10.dp)
+                                    .graphicsLayer(rotationZ = -45f) // paper airplane tilted
+                            )
+                            Text(
+                                text = if (isPremium) String.format("CUSTO: R$ %.2f", estCost) else "CUSTO: ---",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF2563EB),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
-            }
 
-            // Right side arrow & actions
-            Column(
-                horizontalAlignment = Alignment.End,
-                verticalArrangement = Arrangement.spacedBy(4.dp)
-            ) {
-                if (isCheapest) {
-                    Text(
-                        text = "MAIS BARATO",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = HighDensityGreen
-                    )
-                }
-
+                // 3. Right-side Quick Actions (Favorite STAR & Select MAP)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -854,7 +838,7 @@ fun StationCardItem(
 
                     Box(
                         modifier = Modifier
-                            .size(36.dp)
+                            .size(32.dp)
                             .clip(CircleShape)
                             .background(MaterialTheme.colorScheme.primaryContainer)
                             .clickable { onSelectOnMap() },
@@ -862,11 +846,115 @@ fun StationCardItem(
                     ) {
                         Text(
                             text = "➜",
-                            fontSize = 14.sp,
+                            fontSize = 13.sp,
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
                     }
+                }
+            }
+
+            // 4. Large Yellow/Amber Bordered Featured Price Container (Matching image style)
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color(0xFFFFFBEB), RoundedCornerShape(12.dp))
+                    .border(1.dp, Color(0xFFFDE047), RoundedCornerShape(12.dp))
+                    .padding(horizontal = 14.dp, vertical = 10.dp)
+            ) {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = fuelLabel,
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF64748B),
+                        letterSpacing = 0.5.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = String.format("R$ %.2f", activePrice),
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF2563EB) // Blue color
+                        )
+                        if (isCheapest) {
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFDCFCE7), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    "MELHOR PREÇO",
+                                    fontSize = 8.sp,
+                                    fontWeight = FontWeight.Black,
+                                    color = Color(0xFF15803D)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
+            // 5. Secondary low-profile row below featuring the rest of the prices for full driver awareness
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 2.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Secondary smaller price details
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    if (activeFilter != "Gasolina") {
+                        Text(
+                            text = "G: R$ " + String.format("%.2f", station.priceGasoline),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Gray
+                        )
+                    }
+                    if (activeFilter != "Etanol") {
+                        Text(
+                            text = "E: R$ " + String.format("%.2f", station.priceEthanol),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Gray
+                        )
+                    }
+                    if (activeFilter != "Diesel") {
+                        Text(
+                            text = "D: R$ " + String.format("%.2f", station.priceDiesel),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = Color.Gray
+                        )
+                    }
+                }
+
+                // Updated text with visual Clock icon
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Refresh,
+                        contentDescription = null,
+                        tint = Color.Gray,
+                        modifier = Modifier.size(11.dp)
+                    )
+                    Text(
+                        text = station.lastUpdatedText,
+                        fontSize = 10.5.sp,
+                        color = Color.Gray,
+                        fontWeight = FontWeight.Medium
+                    )
                 }
             }
         }
