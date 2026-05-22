@@ -8,6 +8,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
@@ -613,12 +614,74 @@ fun PremiumPromotionsScreen(
         },
         modifier = Modifier.testTag("premium_promotions_screen")
     ) { innerPadding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .background(MaterialTheme.colorScheme.background)
-        ) {
+        val profileState by viewModel.profile.collectAsState()
+        val isPremium = profileState?.isPremium ?: false
+
+        if (!isPremium) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(Color(0xFFF8FAFC)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(72.dp)
+                            .background(Color(0xFFFEF3C7), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "Desbloquear Premium",
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(36.dp)
+                        )
+                    }
+
+                    Text(
+                        text = "Promoções Exclusivas Premium",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF1E293B),
+                        textAlign = TextAlign.Center
+                    )
+
+                    Text(
+                        text = "Apenas Motoristas Premium possuem acesso visual a promoções especiais, descontos na bomba e vantagens de parceiros credenciados na plataforma.",
+                        fontSize = 14.sp,
+                        color = Color(0xFF64748B),
+                        textAlign = TextAlign.Center,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+
+                    Button(
+                        onClick = { viewModel.navigateTo(Screen.PremiumDetails) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp)
+                            .testTag("promo_upgrade_cta"),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text("Seja Premium por R$ 9,90/mês", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .background(MaterialTheme.colorScheme.background)
+            ) {
             // Horizontal categories filter
             val promoCategories = listOf("Tudo", "Combustível", "Conveniência", "Serviços")
             LazyRow(
@@ -737,6 +800,7 @@ fun PremiumPromotionsScreen(
             }
         }
     }
+}
 }
 
 @Composable

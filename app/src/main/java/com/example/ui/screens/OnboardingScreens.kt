@@ -721,6 +721,7 @@ fun StationRegisterScreen(
 fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var isLoading by remember { mutableStateOf(false) }
     val context = androidx.compose.ui.platform.LocalContext.current
 
     Box(
@@ -908,8 +909,10 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                                 Toast.makeText(context, "Por favor, digite seu e-mail e senha.", Toast.LENGTH_SHORT).show()
                                 return@Button
                             }
+                            isLoading = true
                             // Real Authentication using Firebase Auth with registration verification
                             viewModel.login(targetEmail, targetPassword) { success, error ->
+                                isLoading = false
                                 if (success) {
                                     Toast.makeText(context, "Login efetuado com sucesso (Firebase)!", Toast.LENGTH_SHORT).show()
                                 } else {
@@ -922,6 +925,7 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                                 }
                             }
                         },
+                        enabled = !isLoading,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp)
@@ -932,11 +936,19 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                             contentColor = Color(0xFF1D192B)
                         )
                     ) {
-                        Text(
-                            text = "Entrar via Firebase (Online)",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Bold
-                        )
+                        if (isLoading) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(24.dp),
+                                color = Color(0xFF1D192B),
+                                strokeWidth = 2.5.dp
+                            )
+                        } else {
+                            Text(
+                                text = "Entrar via Firebase (Online)",
+                                fontSize = 15.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
                     }
 
                     // Simulated Demo Login Link

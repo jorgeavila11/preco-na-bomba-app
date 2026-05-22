@@ -34,6 +34,16 @@ import com.example.data.*
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PrecoNaBombaViewModel
 import com.example.ui.viewmodel.Screen
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import android.Manifest
+import android.content.Context
+import android.location.LocationManager
+import android.location.Location
+import android.location.LocationListener
+import android.os.Bundle
+import android.content.pm.PackageManager
+import androidx.core.content.ContextCompat
 
 @Composable
 fun MapMiniPreview(onNavigateToMap: () -> Unit, countNearby: Int) {
@@ -103,6 +113,215 @@ fun MapMiniPreview(onNavigateToMap: () -> Unit, countNearby: Int) {
     }
 }
 
+fun requestSystemLocation(context: Context, viewModel: PrecoNaBombaViewModel) {
+    try {
+        val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
+        if (locationManager == null) {
+            Toast.makeText(context, "Serviço de localização indisponível.", Toast.LENGTH_SHORT).show()
+            return
+        }
+        val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
+        val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
+
+        if (!isGpsEnabled && !isNetworkEnabled) {
+            Toast.makeText(context, "Por favor, ative o GPS/Localização no dispositivo.", Toast.LENGTH_LONG).show()
+            return
+        }
+
+        val fineCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
+        val coarseCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
+        if (fineCheck != PackageManager.PERMISSION_GRANTED && coarseCheck != PackageManager.PERMISSION_GRANTED) {
+            Toast.makeText(context, "Permissão necessária.", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // Try last known location first for instantaneous load
+        var lastKnown: Location? = null
+        if (isGpsEnabled) {
+            lastKnown = locationManager.getLastKnownLocation(LocationManager.GPS_PROVIDER)
+        }
+        if (lastKnown == null && isNetworkEnabled) {
+            lastKnown = locationManager.getLastKnownLocation(LocationManager.NETWORK_PROVIDER)
+        }
+
+        lastKnown?.let {
+            viewModel.updateUserLocation(it.latitude, it.longitude)
+            Toast.makeText(context, "Localização atualizada via GPS!", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        // If no last known location, request single update
+        val provider = if (isGpsEnabled) LocationManager.GPS_PROVIDER else LocationManager.NETWORK_PROVIDER
+        locationManager.requestSingleUpdate(provider, object : LocationListener {
+            override fun onLocationChanged(location: Location) {
+                viewModel.updateUserLocation(location.latitude, location.longitude)
+                Toast.makeText(context, "Localização atualizada!", Toast.LENGTH_SHORT).show()
+            }
+            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+            override fun onProviderEnabled(provider: String) {}
+            override fun onProviderDisabled(provider: String) {}
+        }, context.mainLooper)
+
+        Toast.makeText(context, "Obtendo sinal GPS...", Toast.LENGTH_SHORT).show()
+    } catch (e: SecurityException) {
+        Toast.makeText(context, "Erro de segurança ao acessar GPS.", Toast.LENGTH_SHORT).show()
+    } catch (e: Exception) {
+        Toast.makeText(context, "Erro ao obter GPS: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+    }
+}
+
+@Composable
+fun DriverLocationPanel(viewModel: PrecoNaBombaViewModel, modifier: Modifier = Modifier) {
+    val context = LocalContext.current
+    val userLocation by viewModel.userLocation.collectAsState()
+
+    val permissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineGranted || coarseGranted) {
+            requestSystemLocation(context, viewModel)
+        } else {
+            Toast.makeText(context, "Permissão de GPS necessária para atualizar sua distância em tempo real.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    val presetLocations = listOf(
+        Triple("Av. Paulista", -23.5615, -46.6560),
+        Triple("Centro SP", -23.5489, -46.6388),
+        Triple("Marginal Tietê", -23.5180, -46.6710),
+        Triple("Ibirapuera", -23.5874, -46.6576)
+    )
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(1.dp, BorderSlate300, RoundedCornerShape(16.dp)),
+        colors = CardDefaults.cardColors(containerColor = Color.White),
+        shape = RoundedCornerShape(16.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(32.dp)
+                        .background(MaterialTheme.colorScheme.primaryContainer, CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.LocationOn,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = "Sua Localização GPS",
+                        fontSize = 14.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = TextColOnSurface
+                    )
+                    Text(
+                        text = String.format("Lat: %.4f • Lon: %.4f", userLocation.first, userLocation.second),
+                        fontSize = 11.sp,
+                        color = Color.Gray
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        val fineGranted = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_FINE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+                        val coarseGranted = ContextCompat.checkSelfPermission(
+                            context,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ) == PackageManager.PERMISSION_GRANTED
+
+                        if (fineGranted || coarseGranted) {
+                            requestSystemLocation(context, viewModel)
+                        } else {
+                            permissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = Color.White
+                    ),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.height(36.dp)
+                ) {
+                    Icon(Icons.Default.Refresh, null, tint = Color.White, modifier = Modifier.size(14.dp))
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text("GPS Real", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Text(
+                text = "Simular coordenada de teste (para testar recálculo de distâncias):",
+                fontSize = 11.sp,
+                color = Color.Gray,
+                fontWeight = FontWeight.Medium
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                presetLocations.forEach { (label, lat, lng) ->
+                    val isCurrentPreset = (userLocation.first == lat && userLocation.second == lng)
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .clip(RoundedCornerShape(6.dp))
+                            .background(if (isCurrentPreset) MaterialTheme.colorScheme.primaryContainer else BorderSlate100)
+                            .border(
+                                width = 1.dp,
+                                color = if (isCurrentPreset) MaterialTheme.colorScheme.primary else Color.Transparent,
+                                shape = RoundedCornerShape(6.dp)
+                            )
+                            .clickable {
+                                viewModel.updateUserLocation(lat, lng)
+                                Toast.makeText(context, "Simulado em $label!", Toast.LENGTH_SHORT).show()
+                            }
+                            .padding(vertical = 6.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isCurrentPreset) MaterialTheme.colorScheme.onPrimaryContainer else TextColOnSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun MainDriverHome(
@@ -111,6 +330,9 @@ fun MainDriverHome(
     val stations by viewModel.allStations.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val activeFilter by viewModel.selectedFuelFilter.collectAsState()
+    val profileState by viewModel.profile.collectAsState()
+    val isPremium = profileState?.isPremium ?: false
+    val averageConsumption = profileState?.averageConsumption ?: 12.0
     val context = LocalContext.current
 
     // Apply filtering logic
@@ -282,6 +504,10 @@ fun MainDriverHome(
                     )
                 }
 
+                item {
+                    DriverLocationPanel(viewModel = viewModel)
+                }
+
                 // Header Content Sub-title
                 item {
                     Row(
@@ -337,7 +563,9 @@ fun MainDriverHome(
                                 viewModel.selectStation(station.id)
                                 viewModel.navigateTo(Screen.DriverMap)
                             },
-                            isCheapest = isCheapest
+                            isCheapest = isCheapest,
+                            isPremium = isPremium,
+                            averageConsumption = averageConsumption
                         )
                     }
                 }
@@ -352,8 +580,11 @@ fun StationCardItem(
     activeFilter: String,
     onFavoriteToggle: () -> Unit,
     onSelectOnMap: () -> Unit,
-    isCheapest: Boolean = false
+    isCheapest: Boolean = false,
+    isPremium: Boolean = false,
+    averageConsumption: Double = 12.0
 ) {
+    val context = LocalContext.current
     // Custom Brand initials & colors to match high contrast design theme
     val (brandText, brandBg, brandTextCol) = when {
         station.brand.contains("shell", ignoreCase = true) || station.name.contains("shell", ignoreCase = true) ->
@@ -371,10 +602,16 @@ fun StationCardItem(
             .fillMaxWidth()
             .testTag("station_card_${station.id}")
             .clickable { onSelectOnMap() }
-            .border(1.dp, BorderSlate100, RoundedCornerShape(16.dp)),
-        colors = CardDefaults.cardColors(containerColor = Color.White),
+            .border(
+                width = if (station.isPartner) 2.dp else 1.dp,
+                color = if (station.isPartner) MaterialTheme.colorScheme.primary.copy(alpha = 0.6f) else BorderSlate100,
+                shape = RoundedCornerShape(16.dp)
+            ),
+        colors = CardDefaults.cardColors(
+            containerColor = if (station.isPartner) MaterialTheme.colorScheme.primary.copy(alpha = 0.02f) else Color.White
+        ),
         shape = RoundedCornerShape(16.dp),
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (station.isPartner) 2.dp else 1.dp)
     ) {
         Row(
             modifier = Modifier
@@ -404,13 +641,36 @@ fun StationCardItem(
                         )
                     }
 
-                    Column {
-                        Text(
-                            text = station.name,
-                            fontSize = 14.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = TextColOnSurface
-                        )
+                    Column(modifier = Modifier.weight(1f)) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Text(
+                                text = station.name,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = TextColOnSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                modifier = Modifier.weight(1f, fill = false)
+                            )
+                            if (station.isPartner) {
+                                Box(
+                                    modifier = Modifier
+                                        .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(4.dp))
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        "⭐ Parceiro",
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color.Black
+                                    )
+                                }
+                            }
+                        }
                         Text(
                             text = "A ${station.distanceKm} KM • ${station.address.uppercase()}",
                             fontSize = 9.sp,
@@ -501,6 +761,65 @@ fun StationCardItem(
                         )
                     }
                 }
+
+                // Estimated Travel Cost calculation (Rule 2)
+                Spacer(modifier = Modifier.height(6.dp))
+                if (isPremium) {
+                    val activePrice = when (activeFilter) {
+                        "Etanol" -> station.priceEthanol
+                        "Diesel" -> station.priceDiesel
+                        else -> station.priceGasoline
+                    }
+                    val estCost = (station.distanceKm / averageConsumption) * activePrice
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFF0FDF4), RoundedCornerShape(6.dp))
+                            .border(0.5.dp, Color(0xFF16A34A).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Info,
+                            contentDescription = "Custo Estimado",
+                            tint = Color(0xFF16A34A),
+                            modifier = Modifier.size(12.dp)
+                        )
+                        Text(
+                            text = String.format("Gasto estimado: R$ %.2f • Distância: %.1f km", estCost, station.distanceKm),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF15803D)
+                        )
+                    }
+                } else {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFEF3C7), RoundedCornerShape(6.dp))
+                            .border(0.5.dp, Color(0xFFD97706).copy(alpha = 0.3f), RoundedCornerShape(6.dp))
+                            .clickable {
+                                Toast.makeText(context, "Calcular custo da viagem é um recurso exclusivo do Plano Premium!", Toast.LENGTH_LONG).show()
+                            }
+                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = "🔒 Recurso Premium",
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(11.dp)
+                        )
+                        Text(
+                            text = "Calcular custo de viagem (Recurso Premium)",
+                            fontSize = 10.5.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFB45309)
+                        )
+                    }
+                }
             }
 
             // Right side arrow & actions
@@ -563,6 +882,10 @@ fun DriverMap(
 ) {
     val stations by viewModel.allStations.collectAsState()
     val selectedId by viewModel.selectedStationId.collectAsState()
+    val profileState by viewModel.profile.collectAsState()
+    val isPremium = profileState?.isPremium ?: false
+    val averageConsumption = profileState?.averageConsumption ?: 12.0
+    val activeFilter by viewModel.selectedFuelFilter.collectAsState()
     val context = LocalContext.current
 
     val currentSelectedStation = remember(stations, selectedId) {
@@ -723,6 +1046,60 @@ fun DriverMap(
                                     }
                                 }
 
+                                // Premium Travel Cost Estimation (Rule 2)
+                                Spacer(modifier = Modifier.height(12.dp))
+                                if (isPremium) {
+                                    val activePrice = when (activeFilter) {
+                                         "Etanol" -> station.priceEthanol
+                                         "Diesel" -> station.priceDiesel
+                                         else -> station.priceGasoline
+                                     }
+                                     val estCost = (station.distanceKm / averageConsumption) * activePrice
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
+                                            .padding(12.dp)
+                                    ) {
+                                        Icon(Icons.Default.LocationOn, null, tint = Color(0xFF2E7D32))
+                                        Column {
+                                            Text("CUSTO ESTIMADO DE COMBUSTÍVEL", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                            Text(
+                                                text = String.format("Gasto de R$ %.2f • Distância: %.1f km até o posto", estCost, station.distanceKm),
+                                                fontSize = 13.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFF2E7D32)
+                                            )
+                                        }
+                                    }
+                                } else {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .background(Color(0xFFFFF3E0), RoundedCornerShape(8.dp))
+                                            .clickable {
+                                                Toast.makeText(context, "Upgrade para Premium para ter acesso automático às estimativas de custo!", Toast.LENGTH_LONG).show()
+                                                viewModel.navigateTo(Screen.PremiumDetails)
+                                            }
+                                            .padding(12.dp)
+                                    ) {
+                                        Icon(Icons.Default.Lock, null, tint = Color(0xFFE65100))
+                                        Column {
+                                            Text("CUSTO DE VIAGEM ATÉ O POSTO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                            Text(
+                                                text = "🔒 Calcular custo de viagem (Recurso Premium)",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color(0xFFE65100)
+                                            )
+                                        }
+                                    }
+                                }
+
                                 Spacer(modifier = Modifier.height(20.dp))
 
                                 // Nav actions row
@@ -829,21 +1206,35 @@ fun DriverMap(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary)
+                                .background(
+                                    if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer 
+                                    else if (station.isPartner) Color(0xFF0369A1) // Partner color
+                                    else MaterialTheme.colorScheme.primary
+                                )
                                 .border(
-                                    2.dp,
-                                    Color.White,
-                                    RoundedCornerShape(8.dp)
+                                    width = if (station.isPartner) 3.dp else 2.dp,
+                                    color = if (station.isPartner) Color(0xFFF59E0B) else Color.White,
+                                    shape = RoundedCornerShape(8.dp)
                                 )
                                 .padding(horizontal = 8.dp, vertical = 4.dp),
                             contentAlignment = Alignment.Center
                         ) {
-                            Text(
-                                text = String.format("R$ %.2f", station.priceGasoline),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = if (hasActiveMarkerSelected) Color.Black else Color.White
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                if (station.isPartner) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = "Parceiro",
+                                        tint = Color(0xFFF59E0B),
+                                        modifier = Modifier.size(10.dp)
+                                    )
+                                }
+                                Text(
+                                    text = String.format("R$ %.2f", station.priceGasoline),
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = if (hasActiveMarkerSelected) Color.Black else Color.White
+                                )
+                            }
                         }
 
                         // Bottom indicator arrow

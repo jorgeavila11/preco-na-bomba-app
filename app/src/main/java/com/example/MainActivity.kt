@@ -37,7 +37,7 @@ class MainActivity : ComponentActivity() {
             applicationContext,
             PrecoNaBombaDatabase::class.java,
             "preco_na_bomba_database"
-        ).fallbackToDestructiveMigration().build()
+        ).fallbackToDestructiveMigration(true).build()
 
         repository = PrecoNaBombaRepository(
             database.precoNaBombaDao()

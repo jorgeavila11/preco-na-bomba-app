@@ -28,11 +28,43 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     private val _currentScreen = MutableStateFlow<Screen>(Screen.OnboardingRoleSelection)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
-    // Interactive state flows from Room Database
+    // Driver GPS Geolocation state
+    private val _userLocation = MutableStateFlow<Pair<Double, Double>>(Pair(-23.5505, -46.6333)) // Default starting coordinates (Av. Paulista central area)
+    val userLocation: StateFlow<Pair<Double, Double>> = _userLocation.asStateFlow()
+
+    fun updateUserLocation(lat: Double, lng: Double) {
+        _userLocation.value = Pair(lat, lng)
+    }
+
+    private fun calculateDistanceInKm(lat1: Double, lon1: Double, lat2: Double, lon2: Double): Double {
+        val r = 6371.0 // Earth's radius in km
+        val dLat = Math.toRadians(lat2 - lat1)
+        val dLon = Math.toRadians(lon2 - lon1)
+        val a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                Math.cos(Math.toRadians(lat1)) * Math.cos(Math.toRadians(lat2)) *
+                Math.sin(dLon / 2) * Math.sin(dLon / 2)
+        val c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a))
+        val distance = r * c
+        return if (distance.isNaN()) 0.0 else (Math.round(distance * 10.0) / 10.0) // Round to 1 decimal place
+    }
+
+    // Interactive state flows from Room Database combined with dynamically calculated live distance based on userLocation
     val allStations: StateFlow<List<FuelStation>> = repository.allStations
+        .combine(_userLocation) { stations, userLoc ->
+            stations.map { station ->
+                val distance = calculateDistanceInKm(userLoc.first, userLoc.second, station.latitude, station.longitude)
+                station.copy(distanceKm = distance)
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val favoriteStations: StateFlow<List<FuelStation>> = repository.favoriteStations
+        .combine(_userLocation) { stations, userLoc ->
+            stations.map { station ->
+                val distance = calculateDistanceInKm(userLoc.first, userLoc.second, station.latitude, station.longitude)
+                station.copy(distanceKm = distance)
+            }
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     val allRefuelings: StateFlow<List<Refueling>> = repository.allRefuelings

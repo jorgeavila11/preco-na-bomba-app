@@ -107,6 +107,7 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
                         brand = "Ipiranga",
                         distanceKm = 1.8,
                         isFavorite = true,
+                        isPartner = true,
                         lastUpdatedText = "Atualizado há 10 min"
                     )
                 )

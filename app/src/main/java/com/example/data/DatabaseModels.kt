@@ -26,6 +26,7 @@ data class FuelStation(
     val brand: String, // Shell, Ipiranga, Petrobras, independent
     val distanceKm: Double,
     val isFavorite: Boolean = false,
+    val isPartner: Boolean = false,
     val lastUpdatedText: String = "Atualizado recentemente",
     val lastUpdatedTimestamp: Long = System.currentTimeMillis()
 )
@@ -98,7 +99,7 @@ interface PrecoNaBombaDao {
 // AppDatabase definition
 @Database(
     entities = [FuelStation::class, Refueling::class, DriverProfile::class],
-    version = 1,
+    version = 2,
     exportSchema = false
 )
 abstract class PrecoNaBombaDatabase : RoomDatabase() {
