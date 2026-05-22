@@ -682,57 +682,25 @@ fun StationCardItem(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            // Raw layout: Brand Logo Box at Left + Column Content at Center/Right
+            // 1. Top Section Row: Title on Left, Favorite/Navigation on Right
             Row(
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                // 1. White card rounded box for Brand Logo (visual match to the Petrobras/BR card at left of image)
-                Box(
-                    modifier = Modifier
-                        .size(54.dp)
-                        .clip(RoundedCornerShape(12.dp))
-                        .background(Color.White)
-                        .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp)),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Text(
-                            text = brandText,
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.Black,
-                            color = brandTextCol,
-                            modifier = Modifier
-                                .background(brandBg, RoundedCornerShape(4.dp))
-                                .padding(horizontal = 5.dp, vertical = 2.dp)
-                        )
-                        Text(
-                            text = brandResource.uppercase(),
-                            fontSize = 8.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Gray,
-                            modifier = Modifier.padding(top = 2.dp)
-                        )
-                    }
-                }
-
-                // 2. Middle information block (Title, Sub-header, Row of Tags)
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    // Title
                     Text(
                         text = station.name,
-                        fontSize = 16.sp,
+                        fontSize = 18.sp,
                         fontWeight = FontWeight.Bold,
                         color = TextColOnSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
 
-                    // Partner Premium subheader (in Gold/Yellow Caps)
                     if (station.isPartner) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Icon(
@@ -750,76 +718,9 @@ fun StationCardItem(
                             )
                         }
                     }
-
-                    Spacer(modifier = Modifier.height(2.dp))
-
-                    // Row of tags: [ABERTO 24H] [Distance] [Custo button/badge]
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        // Tag: Open hours (light green background, green text)
-                        Box(
-                            modifier = Modifier
-                                .background(Color(0xFFF0FDF4), RoundedCornerShape(6.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = station.openHours.uppercase(),
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF16A34A),
-                                maxLines = 1
-                            )
-                        }
-
-                        // Real-time calculated / automatic distance text (Aesthetic match: gray text)
-                        Text(
-                            text = String.format("%.1f km", station.distanceKm),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f, fill = false)
-                        )
-
-                        // Badge: Blue Custo badge
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(4.dp),
-                            modifier = Modifier
-                                .background(Color(0xFFEFF6FF), RoundedCornerShape(6.dp))
-                                .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(6.dp))
-                                .clickable {
-                                    if (!isPremium) {
-                                        Toast.makeText(context, "Calculadora de gastos de combustível em tempo real é exclusiva para membros Premium!", Toast.LENGTH_SHORT).show()
-                                    }
-                                }
-                                .padding(horizontal = 6.dp, vertical = 3.dp)
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Send,
-                                contentDescription = null,
-                                tint = Color(0xFF2563EB),
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .graphicsLayer(rotationZ = -45f) // paper airplane tilted
-                            )
-                            Text(
-                                text = if (isPremium) String.format("CUSTO: R$ %.2f", estCost) else "CUSTO: ---",
-                                fontSize = 10.sp,
-                                fontWeight = FontWeight.Black,
-                                color = Color(0xFF2563EB),
-                                maxLines = 1,
-                                softWrap = false
-                            )
-                        }
-                    }
                 }
 
-                // 3. Right-side Quick Actions (Favorite STAR & Select MAP)
+                // Quick Actions (Favorite STAR & Select MAP)
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -831,7 +732,7 @@ fun StationCardItem(
                         Icon(
                             imageVector = Icons.Default.Star,
                             contentDescription = "Favoritar",
-                            tint = if (station.isFavorite) Color(0xFFFDE047) else Color.LightGray,
+                            tint = if (station.isFavorite) Color(0xFFEAB308) else Color.LightGray,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -850,6 +751,105 @@ fun StationCardItem(
                             fontWeight = FontWeight.Bold,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
+                    }
+                }
+            }
+
+            // 2. Middle Section Row: Brand Logo on Left, Details (Status & Distance/Custo in a Row) on Right
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Brand logo container (SH/Petrobras box)
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(44.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(brandBg),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = brandText,
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Black,
+                            color = brandTextCol
+                        )
+                    }
+                    Text(
+                        text = brandResource.uppercase(),
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.Gray
+                    )
+                }
+
+                // Info Column: Status on top, Distance & Custo badge below
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    // Status text
+                    Text(
+                        text = station.openHours.uppercase(),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.Black,
+                        color = Color(0xFF16A34A),
+                        maxLines = 1
+                    )
+
+                    // Distance & Custo side-by-side Row
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = String.format("%.1f km", station.distanceKm),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B),
+                            maxLines = 1
+                        )
+
+                        // Blue Custo Badge
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            modifier = Modifier
+                                .background(Color(0xFFEFF6FF), RoundedCornerShape(6.dp))
+                                .border(1.dp, Color(0xFFBFDBFE), RoundedCornerShape(6.dp))
+                                .clickable {
+                                    if (!isPremium) {
+                                        Toast.makeText(context, "Calculadora de gastos de combustível em tempo real é exclusiva para membros Premium!", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Send,
+                                contentDescription = null,
+                                tint = Color(0xFF2563EB),
+                                modifier = Modifier
+                                    .size(11.dp)
+                                    .graphicsLayer(rotationZ = -45f) // paper airplane tilted
+                            )
+                            Text(
+                                text = if (isPremium) {
+                                    String.format("R$ %.2f", estCost).replace('.', ',')
+                                } else {
+                                    "VER CUSTO DE VIAGEM 🔒"
+                                },
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color(0xFF2563EB),
+                                maxLines = 1,
+                                softWrap = false
+                            )
+                        }
                     }
                 }
             }
