@@ -658,28 +658,104 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                 repository.updateProfile(defaultProfile, syncToFirestore = !isStationOwner)
                             }
                             
-                            val matchedStation = repository.getStationByEmail(email)
-                            if (matchedStation != null) {
-                                currentStationId.value = matchedStation.id
-                                ownerStationPlan.value = if (matchedStation.isPartner) "Conta Premium" else "Conta Pro"
-                                navigateTo(Screen.MainStationHome)
-                            } else if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
-                                navigateTo(Screen.MainStationHome)
+                            if (isStationOwner) {
+                                val matchedStation = repository.getStationByEmail(email)
+                                if (matchedStation != null) {
+                                    currentStationId.value = matchedStation.id
+                                    ownerStationPlan.value = if (matchedStation.isPartner) "Conta Premium" else "Conta Pro"
+                                    navigateTo(Screen.MainStationHome)
+                                    onResult(true, null)
+                                } else {
+                                    FirebaseManager.fetchStationFromFirestore(uid) { cloudStation ->
+                                        viewModelScope.launch {
+                                            if (cloudStation != null) {
+                                                repository.insertStation(cloudStation)
+                                                val savedStation = repository.getStationByEmail(email) ?: repository.getStationByCnpj(cloudStation.cnpj ?: "")
+                                                if (savedStation != null) {
+                                                    currentStationId.value = savedStation.id
+                                                    ownerStationPlan.value = if (savedStation.isPartner) "Conta Premium" else "Conta Pro"
+                                                }
+                                                navigateTo(Screen.MainStationHome)
+                                                onResult(true, null)
+                                            } else {
+                                                // Create local representative station for owner
+                                                val defaultStation = FuelStation(
+                                                    name = email.substringBefore("@").replaceFirstChar { it.uppercase() } + " Posto",
+                                                    address = "Endereço não informado",
+                                                    latitude = -23.5505,
+                                                    longitude = -46.6333,
+                                                    priceGasoline = 5.89,
+                                                    priceEthanol = 3.75,
+                                                    priceDiesel = 6.12,
+                                                    openHours = "24 Horas",
+                                                    brand = "Independente",
+                                                    distanceKm = 0.0,
+                                                    isFavorite = false,
+                                                    isPartner = true,
+                                                    lastUpdatedText = "Criado no login",
+                                                    lastUpdatedTimestamp = System.currentTimeMillis(),
+                                                    cnpj = "00.000.000/0001-00",
+                                                    email = email,
+                                                    phone = "(11) 98765-4321",
+                                                    razaoSocial = ""
+                                                )
+                                                repository.insertStation(defaultStation)
+                                                val savedStation = repository.getStationByEmail(email)
+                                                if (savedStation != null) {
+                                                    currentStationId.value = savedStation.id
+                                                }
+                                                ownerStationPlan.value = "Conta Pro"
+                                                navigateTo(Screen.MainStationHome)
+                                                onResult(true, null)
+                                            }
+                                        }
+                                    }
+                                }
                             } else {
                                 navigateTo(Screen.MainDriverHome)
+                                onResult(true, null)
                             }
-                            onResult(true, null)
                         }
                     }
                 } else {
                     viewModelScope.launch {
                         val matchedStation = repository.getStationByEmail(email)
-                        if (matchedStation != null) {
-                            currentStationId.value = matchedStation.id
-                            ownerStationPlan.value = if (matchedStation.isPartner) "Conta Premium" else "Conta Pro"
-                            navigateTo(Screen.MainStationHome)
-                        } else if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
-                            navigateTo(Screen.MainStationHome)
+                        val isStationOwner = (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br" || matchedStation != null)
+                        if (isStationOwner) {
+                            if (matchedStation != null) {
+                                currentStationId.value = matchedStation.id
+                                ownerStationPlan.value = if (matchedStation.isPartner) "Conta Premium" else "Conta Pro"
+                                navigateTo(Screen.MainStationHome)
+                            } else {
+                                // Create local representative station
+                                val defaultStation = FuelStation(
+                                    name = email.substringBefore("@").replaceFirstChar { it.uppercase() } + " Posto",
+                                    address = "Endereço não informado",
+                                    latitude = -23.5505,
+                                    longitude = -46.6333,
+                                    priceGasoline = 5.89,
+                                    priceEthanol = 3.75,
+                                    priceDiesel = 6.12,
+                                    openHours = "24 Horas",
+                                    brand = "Independente",
+                                    distanceKm = 0.0,
+                                    isFavorite = false,
+                                    isPartner = true,
+                                    lastUpdatedText = "Criado no login",
+                                    lastUpdatedTimestamp = System.currentTimeMillis(),
+                                    cnpj = "00.000.000/0001-00",
+                                    email = email,
+                                    phone = "(11) 98765-4321",
+                                    razaoSocial = ""
+                                )
+                                repository.insertStation(defaultStation)
+                                val savedStation = repository.getStationByEmail(email)
+                                if (savedStation != null) {
+                                    currentStationId.value = savedStation.id
+                                }
+                                ownerStationPlan.value = "Conta Pro"
+                                navigateTo(Screen.MainStationHome)
+                            }
                         } else {
                             navigateTo(Screen.MainDriverHome)
                         }
