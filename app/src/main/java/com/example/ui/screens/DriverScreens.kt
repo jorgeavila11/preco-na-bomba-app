@@ -835,11 +835,11 @@ fun StationCardItem(
                                 tint = Color(0xFF2563EB),
                                 modifier = Modifier
                                     .size(11.dp)
-                                    .graphicsLayer(rotationZ = -45f) // paper airplane tilted
+                                    .graphicsLayer(rotationZ = -45f)
                             )
                             Text(
                                 text = if (isPremium) {
-                                    String.format("R$ %.2f", estCost).replace('.', ',')
+                                    if (activePrice <= 0.0) "CUSTO: ---" else String.format("R$ %.2f", estCost).replace('.', ',')
                                 } else {
                                     "VER CUSTO DE VIAGEM 🔒"
                                 },
@@ -878,12 +878,12 @@ fun StationCardItem(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = String.format("R$ %.2f", activePrice),
-                            fontSize = 20.sp,
+                            text = if (activePrice <= 0.0) "Preço não informado" else String.format("R$ %.2f", activePrice),
+                            fontSize = if (activePrice <= 0.0) 15.sp else 20.sp,
                             fontWeight = FontWeight.ExtraBold,
                             color = Color(0xFF2563EB) // Blue color
                         )
-                        if (isCheapest) {
+                        if (isCheapest && activePrice > 0.0) {
                             Box(
                                 modifier = Modifier
                                     .background(Color(0xFFDCFCE7), RoundedCornerShape(4.dp))
@@ -914,7 +914,7 @@ fun StationCardItem(
                 ) {
                     if (activeFilter != "Gasolina") {
                         Text(
-                            text = "G: R$ " + String.format("%.2f", station.priceGasoline),
+                            text = "G: " + if (station.priceGasoline <= 0.0) "---" else String.format("R$ %.2f", station.priceGasoline),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.Gray
@@ -922,7 +922,7 @@ fun StationCardItem(
                     }
                     if (activeFilter != "Etanol") {
                         Text(
-                            text = "E: R$ " + String.format("%.2f", station.priceEthanol),
+                            text = "E: " + if (station.priceEthanol <= 0.0) "---" else String.format("R$ %.2f", station.priceEthanol),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.Gray
@@ -930,7 +930,7 @@ fun StationCardItem(
                     }
                     if (activeFilter != "Diesel") {
                         Text(
-                            text = "D: R$ " + String.format("%.2f", station.priceDiesel),
+                            text = "D: " + if (station.priceDiesel <= 0.0) "---" else String.format("R$ %.2f", station.priceDiesel),
                             fontSize = 11.sp,
                             fontWeight = FontWeight.SemiBold,
                             color = Color.Gray
@@ -975,6 +975,9 @@ fun DriverMap(
     val averageConsumption = profileState?.averageConsumption ?: 12.0
     val activeFilter by viewModel.selectedFuelFilter.collectAsState()
     val context = LocalContext.current
+
+    var isPriceUpdateDialogOpen by remember { mutableStateOf(false) }
+    var localStationToUpdate by remember { mutableStateOf<com.example.data.FuelStation?>(null) }
 
     val currentSelectedStation = remember(stations, selectedId) {
         stations.find { it.id == selectedId } ?: stations.firstOrNull()
@@ -1111,7 +1114,12 @@ fun DriverMap(
                                             Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
                                             Column {
                                                 Text("Gasolina Comum", fontSize = 10.sp, color = Color.Gray)
-                                                Text(String.format("R$ %.2f", station.priceGasoline), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                                Text(
+                                                    text = if (station.priceGasoline <= 0.0) "Não informado" else String.format("R$ %.2f", station.priceGasoline),
+                                                    fontSize = if (station.priceGasoline <= 0.0) 12.sp else 16.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black
+                                                )
                                             }
                                         }
                                     }
@@ -1128,7 +1136,12 @@ fun DriverMap(
                                             Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.secondary)
                                             Column {
                                                 Text("Etanol", fontSize = 10.sp, color = Color.Gray)
-                                                Text(String.format("R$ %.2f", station.priceEthanol), fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                                                Text(
+                                                    text = if (station.priceEthanol <= 0.0) "Não informado" else String.format("R$ %.2f", station.priceEthanol),
+                                                    fontSize = if (station.priceEthanol <= 0.0) 12.sp else 16.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black
+                                                )
                                             }
                                         }
                                     }
@@ -1184,6 +1197,50 @@ fun DriverMap(
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFFE65100)
                                             )
+                                        }
+                                    }
+                                }
+
+                                if (station.priceGasoline <= 0.0 || station.priceEthanol <= 0.0) {
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    Card(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .border(1.dp, Color(0xFFFDE047), RoundedCornerShape(12.dp)),
+                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+                                        shape = RoundedCornerShape(12.dp)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier.padding(14.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Info,
+                                                    contentDescription = null,
+                                                    tint = Color(0xFFD97706)
+                                                )
+                                                Text(
+                                                    text = "Vimos que este posto existe, você sabe o preço do combustível lá?",
+                                                    fontSize = 12.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF92400E)
+                                                )
+                                            }
+                                            Button(
+                                                onClick = {
+                                                    localStationToUpdate = station
+                                                    isPriceUpdateDialogOpen = true
+                                                },
+                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                                modifier = Modifier.fillMaxWidth().height(36.dp),
+                                                shape = RoundedCornerShape(8.dp)
+                                            ) {
+                                                Text("Preencher Preço", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
                                         }
                                     }
                                 }
@@ -1379,6 +1436,65 @@ fun DriverMap(
                 }
             }
         }
+    }
+
+    if (isPriceUpdateDialogOpen && localStationToUpdate != null) {
+        val targetStation = localStationToUpdate!!
+        var inputGasoline by remember { mutableStateOf(if (targetStation.priceGasoline > 0.0) targetStation.priceGasoline.toString() else "") }
+        var inputEthanol by remember { mutableStateOf(if (targetStation.priceEthanol > 0.0) targetStation.priceEthanol.toString() else "") }
+        var inputDiesel by remember { mutableStateOf(if (targetStation.priceDiesel > 0.0) targetStation.priceDiesel.toString() else "") }
+
+        AlertDialog(
+            onDismissRequest = { isPriceUpdateDialogOpen = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val gasVal = inputGasoline.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val ethVal = inputEthanol.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val dieVal = inputDiesel.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        
+                        viewModel.updateStationPrices(targetStation.id, gasVal, ethVal, dieVal)
+                        isPriceUpdateDialogOpen = false
+                        Toast.makeText(context, "Preços atualizados com sucesso!", Toast.LENGTH_SHORT).show()
+                    }
+                ) {
+                    Text("Enviar Preços")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isPriceUpdateDialogOpen = false }) {
+                    Text("Cancelar")
+                }
+            },
+            title = { Text("Informar Preços na Bomba", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(targetStation.name, fontSize = 14.sp, fontWeight = FontWeight.Medium, color = Color.Gray)
+                    
+                    OutlinedTextField(
+                        value = inputGasoline,
+                        onValueChange = { inputGasoline = it },
+                        label = { Text("Preço da Gasolina (R$)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = inputEthanol,
+                        onValueChange = { inputEthanol = it },
+                        label = { Text("Preço do Etanol (R$)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = inputDiesel,
+                        onValueChange = { inputDiesel = it },
+                        label = { Text("Preço do Diesel (R$)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
     }
 }
 

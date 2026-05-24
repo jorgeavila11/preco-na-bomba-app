@@ -14,6 +14,24 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
     val allRefuelings: Flow<List<Refueling>> = dao.getAllRefuelings()
     val profile: Flow<DriverProfile?> = dao.getProfileFlow()
 
+    suspend fun getStationByCnpj(cnpj: String): FuelStation? {
+        val cleanCnpj = cnpj.replace(Regex("[^0-9]"), "")
+        return dao.getStationByCnpj(cleanCnpj)
+    }
+
+    suspend fun deleteStationByCnpj(cnpj: String) {
+        val cleanCnpj = cnpj.replace(Regex("[^0-9]"), "")
+        dao.deleteStationByCnpj(cleanCnpj)
+    }
+
+    suspend fun getStationByEmail(email: String): FuelStation? {
+        return dao.getStationByEmail(email.trim().lowercase())
+    }
+
+    suspend fun getStationById(id: Int): FuelStation? {
+        return dao.getStationById(id)
+    }
+
     // Seeds initial data if not already present
     suspend fun seedDatabaseIfNeeded() {
         // Checking if profile exists, if empty, seed default profile
@@ -51,7 +69,8 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
                         brand = "Shell",
                         distanceKm = 1.2,
                         isFavorite = false,
-                        lastUpdatedText = "Atualizado há 15 min"
+                        lastUpdatedText = "Atualizado há 15 min",
+                        cnpj = "55555555000155"
                     ),
                     FuelStation(
                         name = "Ipiranga - Jd. das Flores",
@@ -65,7 +84,8 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
                         brand = "Ipiranga",
                         distanceKm = 2.8,
                         isFavorite = true,
-                        lastUpdatedText = "Atualizado há 1 h"
+                        lastUpdatedText = "Atualizado há 1 h",
+                        cnpj = "44444444000144"
                     ),
                     FuelStation(
                         name = "Petrobras - BR-101",
@@ -79,7 +99,8 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
                         brand = "Petrobras",
                         distanceKm = 3.5,
                         isFavorite = false,
-                        lastUpdatedText = "Atualizado há 3 h"
+                        lastUpdatedText = "Atualizado há 3 h",
+                        cnpj = "33333333000133"
                     ),
                     FuelStation(
                         name = "Posto Shell - Marginal Tiete",
@@ -93,7 +114,8 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
                         brand = "Shell",
                         distanceKm = 4.5,
                         isFavorite = false,
-                        lastUpdatedText = "Atualizado recentemente"
+                        lastUpdatedText = "Atualizado recentemente",
+                        cnpj = "22222222000122"
                     ),
                     FuelStation(
                         name = "Posto Estrela do Sul",
@@ -108,7 +130,10 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
                         distanceKm = 1.8,
                         isFavorite = true,
                         isPartner = true,
-                        lastUpdatedText = "Atualizado há 10 min"
+                        lastUpdatedText = "Atualizado há 10 min",
+                        cnpj = "12345678000199",
+                        email = "contato@estreladosul.com.br",
+                        phone = "(11) 98765-4321"
                     )
                 )
             )
@@ -153,6 +178,25 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
         com.example.data.FirebaseManager.syncStationPriceToFirestore(station)
     }
 
+    suspend fun insertStation(station: FuelStation) {
+        dao.insertStation(station)
+        val stationToSync = if (station.id == 0 && station.cnpj != null) {
+            dao.getStationByCnpj(station.cnpj) ?: station
+        } else {
+            station
+        }
+        com.example.data.FirebaseManager.syncStationPriceToFirestore(stationToSync)
+    }
+
+    suspend fun insertStations(stations: List<FuelStation>) {
+        dao.insertStations(stations)
+        // Retrieve all after insertion to get valid primary keys for Firebase sync
+        val savedStations = dao.getAllStations().first()
+        savedStations.forEach { station ->
+            com.example.data.FirebaseManager.syncStationPriceToFirestore(station)
+        }
+    }
+
     suspend fun insertRefueling(refueling: Refueling) {
         dao.insertRefueling(refueling)
         com.example.data.FirebaseManager.syncRefuelingToFirestore(refueling)
@@ -176,7 +220,7 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
             val timestamp = System.currentTimeMillis()
             val dateFormat = SimpleDateFormat("dd/MM/yyyy 'às' HH:mm", Locale.getDefault())
             val timeText = dateFormat.format(Date(timestamp))
-            dao.updateStation(
+            updateStation(
                 station.copy(
                     priceGasoline = gasoline,
                     priceEthanol = ethanol,

@@ -75,7 +75,7 @@ object FirebaseManager {
             onResult(null)
             return
         }
-        firestore.collection("profiles").document(uid)
+        firestore.collection("users").document(uid)
             .get()
             .addOnSuccessListener { document ->
                 if (document != null && document.exists()) {
@@ -141,8 +141,8 @@ object FirebaseManager {
             .addOnSuccessListener { authResult ->
                 val uid = authResult.user?.uid
                 if (uid != null) {
-                    // Sync profile to Firestore
-                    saveProfileToFirestoreInternal(uid, profile)
+                    // Sync profile directly to internal firebase "users" with createdAt flag true
+                    saveProfileToFirestoreInternal(uid, profile, isNewRegistration = true)
                 }
                 onResult(true, null)
             }
@@ -152,9 +152,9 @@ object FirebaseManager {
             }
     }
 
-    private fun saveProfileToFirestoreInternal(uid: String, profile: DriverProfile) {
+    private fun saveProfileToFirestoreInternal(uid: String, profile: DriverProfile, isNewRegistration: Boolean) {
         val firestore = firestoreInstance ?: return
-        val profileMap = hashMapOf(
+        val userMap = hashMapOf<String, Any>(
             "name" to profile.name,
             "email" to profile.email,
             "phone" to profile.phone,
@@ -162,21 +162,75 @@ object FirebaseManager {
             "vehiclePlate" to profile.vehiclePlate,
             "averageConsumption" to profile.averageConsumption,
             "fuelType" to profile.fuelType,
-            "isPremium" to profile.isPremium
+            "isPremium" to profile.isPremium,
+            "role" to "driver",
+            "uid" to uid
         )
-        firestore.collection("profiles").document(uid)
-            .set(profileMap)
+
+        if (isNewRegistration) {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+            sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+            val createdAtStr = sdf.format(java.util.Date())
+            userMap["createdAt"] = createdAtStr
+        }
+
+        firestore.collection("users").document(uid)
+            .set(userMap, com.google.firebase.firestore.SetOptions.merge())
             .addOnSuccessListener {
-                Log.d(TAG, "Driver profile successfully synced with Firestore for uid: $uid")
+                Log.d(TAG, "Driver profile successfully synced with Firestore 'users' collection for uid: $uid")
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "Failed syncing profile with Firestore: ${e.message}")
+                Log.e(TAG, "Failed syncing profile with Firestore 'users' collection: ${e.message}")
             }
     }
 
     fun syncProfileToFirestore(profile: DriverProfile) {
         val uid = authInstance?.currentUser?.uid ?: return
-        saveProfileToFirestoreInternal(uid, profile)
+        saveProfileToFirestoreInternal(uid, profile, isNewRegistration = false)
+    }
+
+    fun registerStationUser(
+        emailAddress: String,
+        passwordForAccess: String,
+        nomeFantasia: String,
+        cnpj: String,
+        phoneNumber: String,
+        onResult: (Boolean, String?) -> Unit
+    ) {
+        val auth = authInstance
+        if (auth == null) {
+            onResult(true, null) // Fail gracefully (offline fallback) if firebase is not fully active
+            return
+        }
+        auth.createUserWithEmailAndPassword(emailAddress, passwordForAccess)
+            .addOnSuccessListener { authResult ->
+                val uid = authResult.user?.uid
+                if (uid != null) {
+                    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                    sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                    val createdAtStr = sdf.format(java.util.Date())
+
+                    val userMap = hashMapOf<String, Any>(
+                        "createdAt" to createdAtStr,
+                        "email" to emailAddress,
+                        "name" to nomeFantasia,
+                        "role" to "station_owner",
+                        "uid" to uid
+                    )
+                    firestoreInstance?.collection("users")?.document(uid)?.set(userMap)
+                        ?.addOnSuccessListener {
+                            Log.d(TAG, "Parceiro cadastrado com sucesso exclusivo para coleção 'users' para UID: $uid")
+                        }
+                        ?.addOnFailureListener { e ->
+                            Log.e(TAG, "Erro ao cadastrar parceiro exclusivo para coleção 'users': ${e.message}")
+                        }
+                }
+                onResult(true, null)
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Auth Station Register error: ${exception.message}")
+                onResult(false, exception.localizedMessage ?: "Erro desconhecido")
+            }
     }
 
     fun syncRefuelingToFirestore(refueling: Refueling) {
@@ -204,26 +258,154 @@ object FirebaseManager {
     fun syncStationPriceToFirestore(station: FuelStation) {
         val firestore = firestoreInstance ?: return
         val docId = station.id.toString()
+        val currentUid = authInstance?.currentUser?.uid ?: ""
+
+        val isPartnerStation = station.isPartner || currentUid.isNotEmpty()
+
+        if (isPartnerStation) {
+            val targetUid = if (currentUid.isNotEmpty()) currentUid else (station.email ?: "")
+            if (targetUid.isNotEmpty()) {
+                val nestedData = hashMapOf(
+                    "address" to station.address,
+                    "brand" to station.brand,
+                    "location" to hashMapOf(
+                        "lat" to station.latitude,
+                        "lng" to station.longitude
+                    ),
+                    "name" to station.name,
+                    "prices" to hashMapOf(
+                        "diesel" to station.priceDiesel,
+                        "ethanol" to station.priceEthanol,
+                        "gasoline" to station.priceGasoline
+                    ),
+                    "status" to "open",
+                    "uid" to targetUid,
+                    "userId" to targetUid,
+                    "ownerUid" to targetUid,
+                    "cnpj" to (station.cnpj ?: ""),
+                    "email" to (station.email ?: ""),
+                    "phone" to (station.phone ?: ""),
+                    "razaoSocial" to (station.razaoSocial ?: ""),
+                    "isPremium" to true
+                )
+
+                firestore.collection("stations").document(targetUid)
+                    .set(nestedData)
+                    .addOnSuccessListener {
+                        Log.d(TAG, "Station partner nested format successfully synced to cloud stations/$targetUid.")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Failed syncing partner station nested format to stations/$targetUid: ${e.message}")
+                    }
+            } else {
+                Log.w(TAG, "Station is partner but brand/email/currentUid are all empty, cannot sync to targetUid doc.")
+            }
+        } else {
+            val flatData = hashMapOf(
+                "id" to station.id,
+                "name" to station.name,
+                "address" to station.address,
+                "latitude" to station.latitude,
+                "longitude" to station.longitude,
+                "priceGasoline" to station.priceGasoline,
+                "priceEthanol" to station.priceEthanol,
+                "priceDiesel" to station.priceDiesel,
+                "openHours" to station.openHours,
+                "brand" to station.brand,
+                "distanceKm" to station.distanceKm,
+                "isFavorite" to station.isFavorite,
+                "isPartner" to station.isPartner,
+                "isPremium" to station.isPartner,
+                "lastUpdatedText" to station.lastUpdatedText,
+                "lastUpdatedTimestamp" to station.lastUpdatedTimestamp,
+                "cnpj" to (station.cnpj ?: ""),
+                "email" to (station.email ?: ""),
+                "phone" to (station.phone ?: ""),
+                "razaoSocial" to (station.razaoSocial ?: ""),
+                "ownerUid" to currentUid
+            )
+
+            firestore.collection("stations").document(docId)
+                .set(flatData)
+                .addOnSuccessListener {
+                    Log.d(TAG, "Station prices flat format successfully synced to cloud Firestore at stations/$docId.")
+                }
+                .addOnFailureListener { e ->
+                    Log.e(TAG, "Failed syncing station flat format: ${e.message}")
+                }
+        }
+    }
+
+    fun syncPromotionToFirestore(stationId: Int, title: String, category: String, value: String, stationName: String, isPremium: Boolean) {
+        val firestore = firestoreInstance ?: return
         val data = hashMapOf(
-            "id" to station.id,
-            "name" to station.name,
-            "address" to station.address,
-            "priceGasoline" to station.priceGasoline,
-            "priceEthanol" to station.priceEthanol,
-            "priceDiesel" to station.priceDiesel,
-            "openHours" to station.openHours,
-            "brand" to station.brand,
-            "distanceKm" to station.distanceKm,
-            "lastUpdatedText" to station.lastUpdatedText,
-            "lastUpdatedTimestamp" to station.lastUpdatedTimestamp
+            "stationId" to stationId,
+            "title" to title,
+            "category" to category,
+            "value" to value,
+            "stationName" to stationName,
+            "isFromPremiumStation" to isPremium,
+            "timestamp" to System.currentTimeMillis()
         )
-        firestore.collection("stations").document(docId)
-            .set(data)
-            .addOnSuccessListener {
-                Log.d(TAG, "Station prices successfully synced to cloud Firestore.")
+        firestore.collection("promotions")
+            .add(data)
+            .addOnSuccessListener { docRef ->
+                Log.d(TAG, "Promotion synced successfully to Firestore! Doc ID: ${docRef.id}")
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "Failed syncing station price to cloud: ${e.message}")
+                Log.e(TAG, "Failed syncing promotion: ${e.message}")
             }
+    }
+
+    suspend fun checkCnpjExistsInFirestore(cnpjStr: String): Boolean {
+        val firestore = firestoreInstance ?: return false
+        val cleanCnpj = cnpjStr.replace(Regex("[^0-9]"), "")
+        if (cleanCnpj.isEmpty()) return false
+        return try {
+            // Check in users collection (where vehiclePlate is used to store CNPJ for station_owners)
+            val usersQuery = firestore.collection("users")
+                .whereEqualTo("vehiclePlate", cleanCnpj)
+                .get()
+                .await()
+            if (!usersQuery.isEmpty) {
+                Log.d(TAG, "CNPJ $cleanCnpj found in 'users' collection.")
+                return true
+            }
+
+            // Check in stations collection
+            val stationsQuery = firestore.collection("stations")
+                .whereEqualTo("cnpj", cleanCnpj)
+                .get()
+                .await()
+            if (!stationsQuery.isEmpty) {
+                Log.d(TAG, "CNPJ $cleanCnpj found in 'stations' collection.")
+                return true
+            }
+
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking CNPJ in Firestore: ${e.message}")
+            false
+        }
+    }
+
+    suspend fun checkEmailExistsInFirestore(emailStr: String): Boolean {
+        val firestore = firestoreInstance ?: return false
+        val cleanEmail = emailStr.trim().lowercase()
+        if (cleanEmail.isEmpty()) return false
+        return try {
+            val usersQuery = firestore.collection("users")
+                .whereEqualTo("email", cleanEmail)
+                .get()
+                .await()
+            if (!usersQuery.isEmpty) {
+                Log.d(TAG, "Email $cleanEmail found in 'users' collection.")
+                return true
+            }
+            false
+        } catch (e: Exception) {
+            Log.e(TAG, "Error checking email in Firestore: ${e.message}")
+            false
+        }
     }
 }

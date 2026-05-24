@@ -26,6 +26,7 @@ import com.example.ui.theme.*
 import com.example.ui.viewmodel.PrecoNaBombaViewModel
 import com.example.ui.viewmodel.PromoItem
 import com.example.ui.viewmodel.Screen
+import com.example.ui.viewmodel.StationSaveState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -34,6 +35,26 @@ fun MainStationHome(
 ) {
     val context = LocalContext.current
     var isAddPromoOpen by remember { mutableStateOf(false) }
+    var isUpgradeOfferOpen by remember { mutableStateOf(false) }
+
+    // Subscription status
+    val planState by viewModel.ownerStationPlan.collectAsState()
+
+    val saveState by viewModel.saveState.collectAsState()
+
+    val buttonColor by animateColorAsState(
+        targetValue = when (saveState) {
+            StationSaveState.SUCCESS -> Color(0xFF10B981) // Beautiful Green
+            else -> MaterialTheme.colorScheme.primary // Default Primary
+        },
+        label = "saveButtonColor"
+    )
+
+    LaunchedEffect(saveState) {
+        if (saveState == StationSaveState.SUCCESS) {
+            Toast.makeText(context, "Alterações salvas com sucesso! Preço transmitido para motoristas.", Toast.LENGTH_LONG).show()
+        }
+    }
 
     // Forms bound directly to Live ViewModel values
     val name by viewModel.editStationName.collectAsState()
@@ -75,20 +96,40 @@ fun MainStationHome(
                 ) {
                     Button(
                         onClick = {
-                            viewModel.saveOwnerAlterations()
-                            Toast.makeText(context, "Alterações salvas com sucesso! Preço transmitido para motoristas.", Toast.LENGTH_LONG).show()
+                            if (saveState == StationSaveState.IDLE) {
+                                viewModel.saveOwnerAlterations()
+                            }
                         },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(54.dp)
                             .testTag("station_submit_changes_cta"),
                         shape = RoundedCornerShape(14.dp),
-                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                        colors = ButtonDefaults.buttonColors(containerColor = buttonColor),
+                        enabled = saveState != StationSaveState.SAVING
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(Icons.Default.Check, null, tint = Color.White)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text("SALVAR ALTERAÇÕES", fontWeight = FontWeight.Bold, color = Color.White)
+                            when (saveState) {
+                                StationSaveState.SAVING -> {
+                                    CircularProgressIndicator(
+                                        modifier = Modifier.size(20.dp),
+                                        color = Color.White,
+                                        strokeWidth = 2.dp
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("SALVANDO ALTERAÇÕES...", fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                                StationSaveState.SUCCESS -> {
+                                    Icon(Icons.Default.Check, null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("ALTERAÇÕES SALVAS!", fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                                StationSaveState.IDLE -> {
+                                    Icon(Icons.Default.Check, null, tint = Color.White)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("SALVAR ALTERAÇÕES", fontWeight = FontWeight.Bold, color = Color.White)
+                                }
+                            }
                         }
                     }
                 }
@@ -163,14 +204,17 @@ fun MainStationHome(
                     )
                     Box(
                         modifier = Modifier
-                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(4.dp))
+                            .background(
+                                if (planState == "Conta Premium") MaterialTheme.colorScheme.secondaryContainer else Color(0xFFE2E8F0),
+                                RoundedCornerShape(4.dp)
+                            )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
                         Text(
-                            text = "PREMIUM",
+                            text = if (planState == "Conta Premium") "PREMIUM 💎" else "CONTA PRO 🔒",
                             fontSize = 10.sp,
                             fontWeight = FontWeight.Black,
-                            color = Color.Black
+                            color = if (planState == "Conta Premium") Color.Black else Color.DarkGray
                         )
                     }
                 }
@@ -187,6 +231,48 @@ fun MainStationHome(
                         color = Color.Gray
                     )
                 }
+            }
+
+            Spacer(modifier = Modifier.height(12.dp))
+            if (planState == "Conta Pro") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.08f)),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.2f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                .padding(8.dp)
+                        ) {
+                            Icon(Icons.Default.Star, "Upgrade", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Seja Parceiro Premium! 🚀", fontWeight = FontWeight.Bold, fontSize = 13.sp, color = MaterialTheme.colorScheme.primary)
+                            Text("Cadastre promoções e atraia até 4x mais motoristas.", fontSize = 10.sp, color = Color.DarkGray)
+                        }
+                        Button(
+                            onClick = {
+                                viewModel.ownerStationPlan.value = "Conta Premium"
+                                Toast.makeText(context, "Upgrade realizado! Bem vindo ao plano Parceiro Premium 🎉", Toast.LENGTH_LONG).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 6.dp),
+                            shape = RoundedCornerShape(8.dp),
+                            modifier = Modifier.height(36.dp)
+                        ) {
+                            Text("Upgrade", fontSize = 10.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Price updates module with active form inputs
@@ -312,7 +398,13 @@ fun MainStationHome(
                         Text("Gerenciar Promoções", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                     }
 
-                    TextButton(onClick = { isAddPromoOpen = true }) {
+                    TextButton(onClick = {
+                        if (planState == "Conta Pro") {
+                            isUpgradeOfferOpen = true
+                        } else {
+                            isAddPromoOpen = true
+                        }
+                    }) {
                         Icon(Icons.Default.Add, null)
                         Spacer(modifier = Modifier.width(4.dp))
                         Text("Nova", fontWeight = FontWeight.Bold)
@@ -369,6 +461,38 @@ fun MainStationHome(
                 }
             }
         }
+    }
+
+    // Upgrade Offer dialogue for Conta Pro owners attempting to create promos
+    if (isUpgradeOfferOpen) {
+        AlertDialog(
+            onDismissRequest = { isUpgradeOfferOpen = false },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.ownerStationPlan.value = "Conta Premium"
+                        isUpgradeOfferOpen = false
+                        Toast.makeText(context, "Upgrade efetuado com sucesso! Agora você possui acesso à Conta Premium 🚀", Toast.LENGTH_LONG).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                ) {
+                    Text("Adquirir Conta Premium", fontWeight = FontWeight.Bold, color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isUpgradeOfferOpen = false }) {
+                    Text("Depois")
+                }
+            },
+            title = { Text("Recurso da Conta Premium 💎", fontWeight = FontWeight.Bold) },
+            text = {
+                Text(
+                    "O cadastro de promoções é uma funcionalidade exclusiva para parceiros do plano Premium.\n\n" +
+                    "Ao fazer o upgrade de Conta Pro para Conta Premium por apenas R$ 99,90/mês, " +
+                    "você ganha o direito de lançar cupons e ganha visibilidade prioritária no mapa dos motoristas!"
+                )
+            }
+        )
     }
 
     // Dynamic Promo append alert dialog
@@ -460,6 +584,9 @@ fun StationProfileArea(
     val cnpj by viewModel.editStationCNPJ.collectAsState()
     val razao by viewModel.editStationRazao.collectAsState()
     val address by viewModel.editStationAddress.collectAsState()
+    val brand by viewModel.editStationBrand.collectAsState()
+    val phone by viewModel.editStationPhone.collectAsState()
+    val email by viewModel.editStationEmail.collectAsState()
     val context = LocalContext.current
 
     Scaffold(
@@ -509,6 +636,36 @@ fun StationProfileArea(
                         Column {
                             Text("Razão Social", fontSize = 10.sp, color = Color.Gray)
                             Text(razao, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        }
+                    }
+
+                    // Bandeira (Brand)
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Star, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Bandeira (Distribuidora)", fontSize = 10.sp, color = Color.Gray)
+                            Text(if (brand.isNotEmpty()) brand else "Independente (Sem Bandeira)", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        }
+                    }
+
+                    // Telefone
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Phone, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Telefone de Contato", fontSize = 10.sp, color = Color.Gray)
+                            Text(if (phone.isNotEmpty()) phone else "Não informado", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        }
+                    }
+
+                    // E-mail
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.Email, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("E-mail corporativo", fontSize = 10.sp, color = Color.Gray)
+                            Text(if (email.isNotEmpty()) email else "Não informado", fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                         }
                     }
 

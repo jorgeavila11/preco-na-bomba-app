@@ -676,131 +676,150 @@ fun PremiumPromotionsScreen(
                 }
             }
         } else {
+            val promos by viewModel.promoList.collectAsState()
+            val filteredPromos = remember(promos, activePromoFilter) {
+                promos.filter {
+                    // Rule 4: "As promoções cadastradas pelos 'Postos Premium' só devem ser visíveis no mapa/feed para os usuários 'Motoristas Premium'."
+                    // Thus, only display if the promoting station has isFromPremiumStation == true
+                    val matchesPremiumCreator = it.isFromPremiumStation
+                    val matchesCategory = activePromoFilter == "Tudo" || it.category.contains(activePromoFilter, ignoreCase = true)
+                    matchesPremiumCreator && matchesCategory
+                }
+            }
+
             Column(
                 modifier = Modifier
                     .fillMaxSize()
                     .padding(innerPadding)
                     .background(MaterialTheme.colorScheme.background)
             ) {
-            // Horizontal categories filter
-            val promoCategories = listOf("Tudo", "Combustível", "Conveniência", "Serviços")
-            LazyRow(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color.White)
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(promoCategories) { cat ->
-                    val isSelected = activePromoFilter == cat
-                    Box(
-                        modifier = Modifier
-                            .clip(RoundedCornerShape(20.dp))
-                            .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
-                            .clickable { viewModel.setPromoFilter(cat) }
-                            .padding(horizontal = 16.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            text = cat,
-                            fontSize = 13.sp,
-                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
-
-            LazyColumn(
-                modifier = Modifier.fillMaxSize(),
-                contentPadding = PaddingValues(16.dp),
-                verticalArrangement = Arrangement.spacedBy(16.dp)
-            ) {
-                // Featured offer card matching image
-                item {
-                    Text("Ofertas em Destaque", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(20.dp),
-                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
-                    ) {
-                        Column(modifier = Modifier.padding(20.dp)) {
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .background(Color(0xFFFCD400), RoundedCornerShape(4.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text("EXCLUSIVO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AlertOnYellow)
-                                }
-                                Text("Expira em 4h 20m", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
-                            }
-
-                            Spacer(modifier = Modifier.height(16.dp))
-
+                // Horizontal categories filter
+                val promoCategories = listOf("Tudo", "Combustível", "Conveniência", "Serviços")
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color.White)
+                        .padding(horizontal = 16.dp, vertical = 12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(promoCategories) { cat ->
+                        val isSelected = activePromoFilter == cat
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(20.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceVariant)
+                                .clickable { viewModel.setPromoFilter(cat) }
+                                .padding(horizontal = 16.dp, vertical = 8.dp)
+                        ) {
                             Text(
-                                "R$ 0,20 de desconto por litro",
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color.White
-                            )
-
-                            Text(
-                                "Válido para Gasolina Aditivada em postos selecionados da rede Shell e Ipiranga.",
+                                text = cat,
                                 fontSize = 13.sp,
-                                color = Color.White.copy(alpha = 0.8f),
-                                modifier = Modifier.padding(top = 4.dp)
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) Color.White else MaterialTheme.colorScheme.onSurfaceVariant
                             )
-
-                            Spacer(modifier = Modifier.height(20.dp))
-
-                            Button(
-                                onClick = { Toast.makeText(context, "Cupom resgatado! Apresente o QR código na bomba.", Toast.LENGTH_LONG).show() },
-                                modifier = Modifier.align(Alignment.End),
-                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
-                                shape = RoundedCornerShape(8.dp)
-                            ) {
-                                Text("Resgatar", fontWeight = FontWeight.Black, color = AlertOnYellow)
-                            }
                         }
                     }
                 }
 
-                // Neighborhood deals list
-                item {
-                    Text("Mais Próximas de Você", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                }
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    contentPadding = PaddingValues(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Featured offer card matching image
+                    item {
+                        Text("Ofertas em Destaque", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Spacer(modifier = Modifier.height(10.dp))
 
-                item {
-                    promoCardRowItem(
-                        category = "Conveniência",
-                        title = "Combo Café + Pão de Queijo",
-                        place = "Posto Graal - Rod. Castelo Branco",
-                        valuePrice = "R$ 7,50",
-                        distance = "0.8 km",
-                        onAction = { Toast.makeText(context, "Cupom de café resgatado!", Toast.LENGTH_SHORT).show() }
-                    )
-                }
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primary)
+                        ) {
+                            Column(modifier = Modifier.padding(20.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .background(Color(0xFFFCD400), RoundedCornerShape(4.dp))
+                                            .padding(horizontal = 8.dp, vertical = 4.dp)
+                                    ) {
+                                        Text("EXCLUSIVO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = AlertOnYellow)
+                                    }
+                                    Text("Expira em 4h 20m", fontSize = 11.sp, color = Color.White.copy(alpha = 0.8f))
+                                }
 
-                item {
-                    promoCardRowItem(
-                        category = "Serviços",
-                        title = "Ducha Grátis na Troca de Óleo",
-                        place = "Posto Petrobras - Av. das Nações",
-                        valuePrice = "Grátis",
-                        distance = "1.2 km",
-                        onAction = { Toast.makeText(context, "Resgatado! Ducha grátis liberada.", Toast.LENGTH_SHORT).show() }
-                    )
+                                Spacer(modifier = Modifier.height(16.dp))
+
+                                Text(
+                                    "R$ 0,20 de desconto por litro",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color.White
+                                )
+
+                                Text(
+                                    "Válido para Gasolina Aditivada em postos selecionados da rede Shell e Ipiranga.",
+                                    fontSize = 13.sp,
+                                    color = Color.White.copy(alpha = 0.8f),
+                                    modifier = Modifier.padding(top = 4.dp)
+                                )
+
+                                Spacer(modifier = Modifier.height(20.dp))
+
+                                Button(
+                                    onClick = { Toast.makeText(context, "Cupom resgatado! Apresente o QR código na bomba.", Toast.LENGTH_LONG).show() },
+                                    modifier = Modifier.align(Alignment.End),
+                                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
+                                    shape = RoundedCornerShape(8.dp)
+                                ) {
+                                    Text("Resgatar", fontWeight = FontWeight.Black, color = AlertOnYellow)
+                                }
+                            }
+                        }
+                    }
+
+                    // Neighborhood deals list
+                    item {
+                        Text("Mais Próximas de Você (${filteredPromos.size})", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+
+                    if (filteredPromos.isEmpty()) {
+                        item {
+                            Card(
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = CardDefaults.cardColors(containerColor = Color.White),
+                                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                            ) {
+                                Box(modifier = Modifier.fillMaxWidth().padding(24.dp), contentAlignment = Alignment.Center) {
+                                    Text(
+                                        text = "Nenhuma promoção cadastrada por Postos Premium nesta categoria.",
+                                        fontSize = 13.sp,
+                                        color = Color.Gray,
+                                        textAlign = TextAlign.Center
+                                    )
+                                }
+                            }
+                        }
+                    } else {
+                        items(filteredPromos) { item ->
+                            promoCardRowItem(
+                                category = item.category,
+                                title = item.title,
+                                place = item.stationName,
+                                valuePrice = item.value,
+                                distance = item.distanceKm,
+                                onAction = { Toast.makeText(context, "Cupom para ${item.title} resgatado com sucesso!", Toast.LENGTH_SHORT).show() }
+                            )
+                        }
+                    }
                 }
             }
         }
     }
-}
 }
 
 @Composable

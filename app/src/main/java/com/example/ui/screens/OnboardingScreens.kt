@@ -30,6 +30,9 @@ import androidx.compose.foundation.BorderStroke
 import com.example.ui.theme.*
 import com.example.ui.viewmodel.PrecoNaBombaViewModel
 import com.example.ui.viewmodel.Screen
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import androidx.compose.runtime.rememberCoroutineScope
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -494,13 +497,17 @@ fun DriverRegisterScreen(
 fun StationRegisterScreen(
     viewModel: PrecoNaBombaViewModel
 ) {
+    val context = androidx.compose.ui.platform.LocalContext.current
     var cnpj by remember { mutableStateOf("") }
     var razaoSocial by remember { mutableStateOf("") }
     var nomeFantasia by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
     var selectBrand by remember { mutableStateOf("") }
     var contactTel by remember { mutableStateOf("") }
     var email by remember { mutableStateOf("") }
+    var address by remember { mutableStateOf("Av. das Nações, 1500 - São Paulo, SP") }
     var isAgreed by remember { mutableStateOf(false) }
+    var isRegistering by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -594,14 +601,55 @@ fun StationRegisterScreen(
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                 Text("CNPJ", fontSize = 14.sp, fontWeight = FontWeight.Bold)
-                OutlinedTextField(
-                    value = cnpj,
-                    onValueChange = { cnpj = it },
-                    placeholder = { Text("Ex: 00.000.000/0000-00") },
-                    leadingIcon = { Icon(Icons.Default.Info, null) },
+                Row(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    OutlinedTextField(
+                        value = cnpj,
+                        onValueChange = { cnpj = it },
+                        placeholder = { Text("Ex: 12.345.678/0001-99") },
+                        leadingIcon = { Icon(Icons.Default.Info, null) },
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    var isConsulting by remember { mutableStateOf(false) }
+                    val scope = rememberCoroutineScope()
+                    Button(
+                        onClick = {
+                            if (cnpj.trim().isEmpty()) {
+                                Toast.makeText(context, "Insira um número de CNPJ para consultar!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                isConsulting = true
+                                scope.launch {
+                                    delay(1000) // Aesthetic simulated delay
+                                    val info = viewModel.performCNPJConsultation(cnpj)
+                                    isConsulting = false
+                                    if (info != null) {
+                                        razaoSocial = info.razaoSocial
+                                        nomeFantasia = info.name
+                                        if (info.address.isNotEmpty() && info.address != "Endereço não informado") {
+                                            address = info.address
+                                        }
+                                        Toast.makeText(context, "Dados cadastrais preenchidos para revisão!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "CNPJ consultado! Sem registro online. Digite manualmente.", Toast.LENGTH_SHORT).show()
+                                    }
+                                }
+                            }
+                        },
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary),
+                        shape = RoundedCornerShape(12.dp),
+                        modifier = Modifier.height(56.dp)
+                    ) {
+                        if (isConsulting) {
+                            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        } else {
+                            Text("Consultar", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -625,6 +673,20 @@ fun StationRegisterScreen(
                     leadingIcon = { Icon(Icons.Default.Home, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp)
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Senha de Acesso", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    placeholder = { Text("Cadastre uma senha de acesso") },
+                    leadingIcon = { Icon(Icons.Default.Lock, null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp),
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true
                 )
             }
 
@@ -659,10 +721,22 @@ fun StationRegisterScreen(
                     value = email,
                     onValueChange = { email = it },
                     placeholder = { Text("Ex: exemplo@posto.com.br") },
-                    leadingIcon = { Icon(Icons.Default.Info, null) },
+                    leadingIcon = { Icon(Icons.Default.Email, null) },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(12.dp),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email)
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("Endereço do Posto (Geolocalização)", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                OutlinedTextField(
+                    value = address,
+                    onValueChange = { address = it },
+                    placeholder = { Text("Ex: Av. Paulista, 1000 - São Paulo, SP") },
+                    leadingIcon = { Icon(Icons.Default.LocationOn, null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(12.dp)
                 )
             }
 
@@ -683,10 +757,41 @@ fun StationRegisterScreen(
 
             Button(
                 onClick = {
-                    viewModel.editStationCNPJ.value = cnpj
-                    viewModel.editStationRazao.value = razaoSocial
-                    viewModel.editStationName.value = nomeFantasia
-                    viewModel.navigateTo(Screen.MainStationHome)
+                    if (cnpj.isBlank() || razaoSocial.isBlank() || nomeFantasia.isBlank()) {
+                        Toast.makeText(context, "Por favor, preencha o CNPJ, Razão Social e Nome Fantasia.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (password.isBlank()) {
+                        Toast.makeText(context, "Por favor, cadastre uma senha de acesso para o posto.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (address.isBlank()) {
+                        Toast.makeText(context, "Por favor, informe o endereço para geolocalização.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (!isAgreed) {
+                        Toast.makeText(context, "Você precisa aceitar os termos de uso para continuar.", Toast.LENGTH_SHORT).show()
+                        return@Button
+                    }
+                    if (isRegistering) return@Button
+                    isRegistering = true
+                    viewModel.registerStation(
+                        cnpjStr = cnpj,
+                        razaoSocialStr = razaoSocial,
+                        nomeFantasiaStr = nomeFantasia,
+                        passwordForAccess = password,
+                        brandName = selectBrand,
+                        phoneNumber = contactTel,
+                        emailAddress = email,
+                        addressStr = address
+                    ) { success, msg ->
+                        isRegistering = false
+                        if (success) {
+                            Toast.makeText(context, "Posto cadastrado e geolocalizado com sucesso!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, msg, Toast.LENGTH_LONG).show()
+                        }
+                    }
                 },
                 modifier = Modifier
                     .fillMaxWidth()
@@ -696,18 +801,29 @@ fun StationRegisterScreen(
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        text = "Continuar para Localização",
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = Color.White
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Default.ArrowForward,
-                        contentDescription = null,
-                        tint = Color.White
-                    )
+                    if (isRegistering) {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "Buscando coordenadas (API)...",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                    } else {
+                        Text(
+                            text = "Cadastrar e Localizar via API",
+                            fontSize = 16.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(
+                            imageVector = Icons.Default.ArrowForward,
+                            contentDescription = null,
+                            tint = Color.White
+                        )
+                    }
                 }
             }
 
@@ -954,10 +1070,22 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                     // Simulated Demo Login Link
                     TextButton(
                         onClick = {
-                            Toast.makeText(context, "Modo Demonstrativo Ativo (Offline): Entrando...", Toast.LENGTH_SHORT).show()
+                            val cleanCnpjInput = email.replace(Regex("[^0-9]"), "")
                             if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
+                                viewModel.currentStationId.value = 5 // Defaults to pre-seeded Posto Estrela do Sul (ID 5)
+                                Toast.makeText(context, "Modo Demonstrativo: Logado como Posto Estrela!", Toast.LENGTH_SHORT).show()
                                 viewModel.navigateTo(Screen.MainStationHome)
+                            } else if (cleanCnpjInput.length >= 8) {
+                                viewModel.loginAsStation(cleanCnpjInput, password) { loggedIn ->
+                                    if (loggedIn) {
+                                        Toast.makeText(context, "Modo Demonstrativo: Logado no Posto cadastrado!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "CNPJ não encontrado. Logado como Motorista.", Toast.LENGTH_SHORT).show()
+                                        viewModel.navigateTo(Screen.MainDriverHome)
+                                    }
+                                }
                             } else {
+                                Toast.makeText(context, "Entrando como Motorista...", Toast.LENGTH_SHORT).show()
                                 viewModel.navigateTo(Screen.MainDriverHome)
                             }
                         },

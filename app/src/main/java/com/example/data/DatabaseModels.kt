@@ -28,7 +28,11 @@ data class FuelStation(
     val isFavorite: Boolean = false,
     val isPartner: Boolean = false,
     val lastUpdatedText: String = "Atualizado recentemente",
-    val lastUpdatedTimestamp: Long = System.currentTimeMillis()
+    val lastUpdatedTimestamp: Long = System.currentTimeMillis(),
+    val cnpj: String? = null,
+    val email: String? = null,
+    val phone: String? = null,
+    val razaoSocial: String? = null
 )
 
 // 2. Refueling Log Entity - History of fuelings logged by the driver
@@ -69,6 +73,15 @@ interface PrecoNaBombaDao {
     @Query("SELECT * FROM stations WHERE id = :id LIMIT 1")
     suspend fun getStationById(id: Int): FuelStation?
 
+    @Query("SELECT * FROM stations WHERE cnpj = :cnpj LIMIT 1")
+    suspend fun getStationByCnpj(cnpj: String): FuelStation?
+
+    @Query("DELETE FROM stations WHERE cnpj = :cnpj")
+    suspend fun deleteStationByCnpj(cnpj: String)
+
+    @Query("SELECT * FROM stations WHERE email = :email LIMIT 1")
+    suspend fun getStationByEmail(email: String): FuelStation?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertStations(stations: List<FuelStation>)
 
@@ -99,7 +112,7 @@ interface PrecoNaBombaDao {
 // AppDatabase definition
 @Database(
     entities = [FuelStation::class, Refueling::class, DriverProfile::class],
-    version = 2,
+    version = 5,
     exportSchema = false
 )
 abstract class PrecoNaBombaDatabase : RoomDatabase() {
