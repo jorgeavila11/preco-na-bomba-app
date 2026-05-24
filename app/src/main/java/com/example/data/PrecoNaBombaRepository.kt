@@ -202,9 +202,11 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
         com.example.data.FirebaseManager.syncRefuelingToFirestore(refueling)
     }
 
-    suspend fun updateProfile(profile: DriverProfile) {
+    suspend fun updateProfile(profile: DriverProfile, syncToFirestore: Boolean = true) {
         dao.insertProfile(profile)
-        com.example.data.FirebaseManager.syncProfileToFirestore(profile)
+        if (syncToFirestore) {
+            com.example.data.FirebaseManager.syncProfileToFirestore(profile)
+        }
     }
 
     suspend fun toggleFavorite(stationId: Int) {

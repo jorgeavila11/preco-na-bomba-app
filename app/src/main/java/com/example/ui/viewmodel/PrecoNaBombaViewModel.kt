@@ -636,10 +636,13 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                 
                 val uid = FirebaseManager.getCurrentUserUid()
                 if (uid != null) {
-                    FirebaseManager.fetchProfileFromFirestore(uid) { fetchedProfile ->
+                    FirebaseManager.fetchProfileFromFirestore(uid) { fetchedProfile, role ->
                         viewModelScope.launch {
+                            val isStationOwner = (role == "station_owner" || email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br" || repository.getStationByEmail(email) != null)
+                            
                             if (fetchedProfile != null) {
-                                repository.updateProfile(fetchedProfile)
+                                // Do not sync driver properties or change role to "driver" in Firestore if user is a station owner
+                                repository.updateProfile(fetchedProfile, syncToFirestore = !isStationOwner)
                             } else {
                                 // Default profile if not yet created in cloud
                                 val defaultProfile = DriverProfile(
@@ -652,7 +655,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                     fuelType = "Flex",
                                     isPremium = false
                                 )
-                                repository.updateProfile(defaultProfile)
+                                repository.updateProfile(defaultProfile, syncToFirestore = !isStationOwner)
                             }
                             
                             val matchedStation = repository.getStationByEmail(email)
@@ -851,13 +854,17 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
         viewModelScope.launch {
             val current = repository.profile.first()
             if (current != null) {
+                // Keep driver local/Room DB synced, but skip driver Firestore mapping
                 repository.updateProfile(
                     current.copy(
                         name = name,
                         email = email,
                         phone = phone
-                    )
+                    ),
+                    syncToFirestore = false
                 )
+                // Safely update basic owner name & email inside users collection in Firestore without driver tags
+                FirebaseManager.syncStationOwnerProfileToFirestore(name, email)
             }
         }
     }

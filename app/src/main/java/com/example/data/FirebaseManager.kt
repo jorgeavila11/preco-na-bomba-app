@@ -69,16 +69,17 @@ object FirebaseManager {
         return authInstance?.currentUser?.uid
     }
 
-    fun fetchProfileFromFirestore(uid: String, onResult: (DriverProfile?) -> Unit) {
+    fun fetchProfileFromFirestore(uid: String, onResult: (DriverProfile?, String?) -> Unit) {
         val firestore = firestoreInstance
         if (firestore == null) {
-            onResult(null)
+            onResult(null, null)
             return
         }
         firestore.collection("users").document(uid)
             .get()
             .addOnSuccessListener { document ->
                 if (document != null && document.exists()) {
+                    val role = document.getString("role")
                     val profile = DriverProfile(
                         id = 1,
                         name = document.getString("name") ?: "",
@@ -90,14 +91,14 @@ object FirebaseManager {
                         fuelType = document.getString("fuelType") ?: "Flex",
                         isPremium = document.getBoolean("isPremium") ?: false
                     )
-                    onResult(profile)
+                    onResult(profile, role)
                 } else {
-                    onResult(null)
+                    onResult(null, null)
                 }
             }
             .addOnFailureListener { exception ->
                 Log.e(TAG, "Erro ao buscar perfil no Firestore: ${exception.message}")
-                onResult(null)
+                onResult(null, null)
             }
     }
 
@@ -154,39 +155,74 @@ object FirebaseManager {
 
     private fun saveProfileToFirestoreInternal(uid: String, profile: DriverProfile, isNewRegistration: Boolean) {
         val firestore = firestoreInstance ?: return
-        val userMap = hashMapOf<String, Any>(
-            "name" to profile.name,
-            "email" to profile.email,
-            "phone" to profile.phone,
-            "vehicleModel" to profile.vehicleModel,
-            "vehiclePlate" to profile.vehiclePlate,
-            "averageConsumption" to profile.averageConsumption,
-            "fuelType" to profile.fuelType,
-            "isPremium" to profile.isPremium,
-            "role" to "driver",
-            "uid" to uid
-        )
+        
+        // Safety lock: Fetch the user document first to check if they are already registered as a station owner.
+        // This ensures a station owner profile is NEVER accidentally converted or overwritten to a driver format.
+        firestore.collection("users").document(uid).get()
+            .addOnSuccessListener { document ->
+                if (document != null && document.exists()) {
+                    val existingRole = document.getString("role")
+                    if (existingRole == "station_owner") {
+                        Log.d(TAG, "Failsafe triggered: Skipping saveProfileToFirestoreInternal since user is a 'station_owner'.")
+                        return@addOnSuccessListener
+                    }
+                }
 
-        if (isNewRegistration) {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
-            sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
-            val createdAtStr = sdf.format(java.util.Date())
-            userMap["createdAt"] = createdAtStr
-        }
+                val userMap = hashMapOf<String, Any>(
+                    "name" to profile.name,
+                    "email" to profile.email,
+                    "phone" to profile.phone,
+                    "vehicleModel" to profile.vehicleModel,
+                    "vehiclePlate" to profile.vehiclePlate,
+                    "averageConsumption" to profile.averageConsumption,
+                    "fuelType" to profile.fuelType,
+                    "isPremium" to profile.isPremium,
+                    "role" to "driver",
+                    "uid" to uid
+                )
 
-        firestore.collection("users").document(uid)
-            .set(userMap, com.google.firebase.firestore.SetOptions.merge())
-            .addOnSuccessListener {
-                Log.d(TAG, "Driver profile successfully synced with Firestore 'users' collection for uid: $uid")
+                if (isNewRegistration) {
+                    val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+                    sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+                    val createdAtStr = sdf.format(java.util.Date())
+                    userMap["createdAt"] = createdAtStr
+                }
+
+                firestore.collection("users").document(uid)
+                    .set(userMap, com.google.firebase.firestore.SetOptions.merge())
+                    .addOnSuccessListener {
+                        Log.d(TAG, "Driver profile successfully synced with Firestore 'users' collection for uid: $uid")
+                    }
+                    .addOnFailureListener { e ->
+                        Log.e(TAG, "Failed syncing profile with Firestore 'users' collection: ${e.message}")
+                    }
             }
             .addOnFailureListener { e ->
-                Log.e(TAG, "Failed syncing profile with Firestore 'users' collection: ${e.message}")
+                Log.e(TAG, "Failed verifying existing user role before write: ${e.message}")
             }
     }
 
     fun syncProfileToFirestore(profile: DriverProfile) {
         val uid = authInstance?.currentUser?.uid ?: return
         saveProfileToFirestoreInternal(uid, profile, isNewRegistration = false)
+    }
+
+    fun syncStationOwnerProfileToFirestore(name: String, email: String) {
+        val uid = authInstance?.currentUser?.uid ?: return
+        val firestore = firestoreInstance ?: return
+        val updates = hashMapOf<String, Any>(
+            "name" to name,
+            "email" to email
+        )
+        // Only update name and email, maintaining the station_owner role and avoiding any driver attributes
+        firestore.collection("users").document(uid)
+            .update(updates)
+            .addOnSuccessListener {
+                Log.d(TAG, "Station owner basic info (name/email) successfully updated at users/$uid.")
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed updating station owner details: ${e.message}")
+            }
     }
 
     fun registerStationUser(
