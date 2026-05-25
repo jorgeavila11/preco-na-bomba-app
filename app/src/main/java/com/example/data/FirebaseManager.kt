@@ -2,6 +2,7 @@ package com.example.data
 
 import android.content.Context
 import android.util.Log
+import com.example.ui.viewmodel.PromoItem
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.FirebaseAuth
@@ -150,7 +151,7 @@ object FirebaseManager {
                         cnpj = cnpj,
                         email = email,
                         phone = phone,
-                        razaoSocial = razaoSocial
+                        razaoSocial = if (razaoSocial.isNotEmpty()) razaoSocial else uid
                     )
                     onResult(station)
                 } else {
@@ -433,24 +434,182 @@ object FirebaseManager {
         }
     }
 
-    fun syncPromotionToFirestore(stationId: Int, title: String, category: String, value: String, stationName: String, isPremium: Boolean) {
-        val firestore = firestoreInstance ?: return
+    fun syncPromotionToFirestore(
+        stationIdStr: String,
+        title: String,
+        description: String,
+        price: Double,
+        category: String,
+        startDate: String,
+        endDate: String,
+        isPremium: Boolean,
+        docId: String? = null,
+        onComplete: (String?) -> Unit = {}
+    ) {
+        val firestore = firestoreInstance ?: run { onComplete(null); return }
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        val timestampStr = sdf.format(java.util.Date())
+
         val data = hashMapOf(
-            "stationId" to stationId,
+            "stationId" to stationIdStr,
             "title" to title,
+            "description" to description,
+            "price" to price,
             "category" to category,
-            "value" to value,
-            "stationName" to stationName,
+            "startDate" to startDate,
+            "endDate" to endDate,
             "isFromPremiumStation" to isPremium,
-            "timestamp" to System.currentTimeMillis()
+            "createdAt" to timestampStr,
+            "updatedAt" to timestampStr
         )
-        firestore.collection("promotions")
-            .add(data)
-            .addOnSuccessListener { docRef ->
+        val docRef = if (docId != null) {
+            firestore.collection("promotions").document(docId)
+        } else {
+            firestore.collection("promotions").document()
+        }
+        
+        docRef.set(data)
+            .addOnSuccessListener {
                 Log.d(TAG, "Promotion synced successfully to Firestore! Doc ID: ${docRef.id}")
+                onComplete(docRef.id)
             }
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed syncing promotion: ${e.message}")
+                onComplete(null)
+            }
+    }
+
+    fun fetchAllStationsFromFirestore(onResult: (List<FuelStation>) -> Unit) {
+        val firestore = firestoreInstance
+        if (firestore == null) {
+            onResult(emptyList())
+            return
+        }
+        firestore.collection("stations")
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                val list = mutableListOf<FuelStation>()
+                for (doc in querySnapshot.documents) {
+                    val name = doc.getString("name") ?: continue
+                    val address = doc.getString("address") ?: ""
+                    val brand = doc.getString("brand") ?: "Independente"
+                    val cnpj = doc.getString("cnpj") ?: ""
+                    val email = doc.getString("email") ?: ""
+                    val phone = doc.getString("phone") ?: ""
+                    val razaoSocial = doc.getString("razaoSocial") ?: ""
+                    val uid = doc.id
+                    
+                    val locationMap = doc.get("location") as? Map<*, *>
+                    val lat = (locationMap?.get("lat") as? Number)?.toDouble() ?: -23.5505
+                    val lng = (locationMap?.get("lng") as? Number)?.toDouble() ?: -46.6333
+                    
+                    val pricesMap = doc.get("prices") as? Map<*, *>
+                    val gasoline = (pricesMap?.get("gasoline") as? Number)?.toDouble() ?: 5.89
+                    val ethanol = (pricesMap?.get("ethanol") as? Number)?.toDouble() ?: 3.75
+                    val diesel = (pricesMap?.get("diesel") as? Number)?.toDouble() ?: 6.12
+                    
+                    val isPartner = doc.getBoolean("isPremium") ?: doc.getBoolean("isPartner") ?: true
+
+                    val station = FuelStation(
+                        id = 0,
+                        name = name,
+                        address = address,
+                        latitude = lat,
+                        longitude = lng,
+                        priceGasoline = gasoline,
+                        priceEthanol = ethanol,
+                        priceDiesel = diesel,
+                        openHours = "24 Horas",
+                        brand = brand,
+                        distanceKm = 1.5,
+                        isFavorite = false,
+                        isPartner = isPartner,
+                        lastUpdatedText = "Sincronizado da nuvem",
+                        lastUpdatedTimestamp = System.currentTimeMillis(),
+                        cnpj = cnpj,
+                        email = email,
+                        phone = phone,
+                        razaoSocial = uid // Map the Firestore owner UID to razaoSocial so we can match it back with promotions!
+                    )
+                    list.add(station)
+                }
+                onResult(list)
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Erro ao buscar todos os postos: ${exception.message}", exception)
+                onResult(emptyList())
+            }
+    }
+
+    fun fetchAllPromotionsFromFirestore(onResult: (List<PromoItem>) -> Unit) {
+        val firestore = firestoreInstance
+        if (firestore == null) {
+            onResult(emptyList())
+            return
+        }
+        firestore.collection("promotions")
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                val list = mutableListOf<PromoItem>()
+                for (doc in querySnapshot.documents) {
+                    val title = doc.getString("title") ?: continue
+                    val category = doc.getString("category") ?: "Conveniência"
+                    val description = doc.getString("description") ?: ""
+                    val price = doc.getDouble("price") ?: 0.0
+                    val startDate = doc.getString("startDate") ?: ""
+                    val endDate = doc.getString("endDate") ?: ""
+                    val stationIdStr = doc.getString("stationId") ?: ""
+                    val isPremium = doc.getBoolean("isFromPremiumStation") ?: true
+                    
+                    val formattedPrice = String.format("R$ %.2f", price).replace('.', ',')
+                    
+                    list.add(PromoItem(
+                        title = title,
+                        category = category,
+                        value = formattedPrice,
+                        icon = when (category) {
+                            "Combustível" -> "local_gas_station"
+                            "Conveniência" -> "shopping_basket"
+                            "Serviços" -> "build"
+                            else -> "sell"
+                        },
+                        stationName = "Posto",
+                        distanceKm = "0.7 km",
+                        isFromPremiumStation = isPremium,
+                        stationId = -1,
+                        description = description,
+                        startDate = startDate,
+                        endDate = endDate,
+                        price = price,
+                        firestoreStationId = stationIdStr,
+                        docId = doc.id
+                    ))
+                }
+                onResult(list)
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Erro ao buscar todas as promoções: ${exception.message}", exception)
+                onResult(emptyList())
+            }
+    }
+
+    fun deletePromotionFromFirestore(docId: String, onComplete: (Boolean) -> Unit = {}) {
+        val firestore = firestoreInstance
+        if (firestore == null) {
+            onComplete(false)
+            return
+        }
+        firestore.collection("promotions")
+            .document(docId)
+            .delete()
+            .addOnSuccessListener {
+                Log.d(TAG, "Promotion $docId deleted successfully from Firestore")
+                onComplete(true)
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Error deleting promotion $docId: ${exception.message}", exception)
+                onComplete(false)
             }
     }
 

@@ -17,6 +17,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
@@ -35,6 +36,7 @@ fun MainStationHome(
 ) {
     val context = LocalContext.current
     var isAddPromoOpen by remember { mutableStateOf(false) }
+    var editingPromo by remember { mutableStateOf<PromoItem?>(null) }
     var isUpgradeOfferOpen by remember { mutableStateOf(false) }
 
     // Subscription status
@@ -392,8 +394,14 @@ fun MainStationHome(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    val currentStationId by viewModel.currentStationId.collectAsState()
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(Icons.Default.Star, null, tint = MaterialTheme.colorScheme.primary)
+                        Icon(
+                            imageVector = Icons.Default.AddCircle,
+                            contentDescription = "Gerenciar Promoções",
+                            tint = Color(0xFF2563EB),
+                            modifier = Modifier.size(24.dp)
+                        )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text("Gerenciar Promoções", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                     }
@@ -402,60 +410,202 @@ fun MainStationHome(
                         if (planState == "Conta Pro") {
                             isUpgradeOfferOpen = true
                         } else {
+                            editingPromo = null
                             isAddPromoOpen = true
                         }
                     }) {
-                        Icon(Icons.Default.Add, null)
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("Nova", fontWeight = FontWeight.Bold)
+                        Text("Nova", fontWeight = FontWeight.Bold, color = Color(0xFF2563EB), fontSize = 14.sp)
                     }
                 }
 
-                promos.forEach { item ->
+                val currentStationId by viewModel.currentStationId.collectAsState()
+                val stationPromos = promos.filter { it.stationId == currentStationId }
+
+                if (stationPromos.isEmpty()) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color.White),
-                        border = BorderStroke(1.dp, Color(0xFFF1F5F9))
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
                     ) {
-                        Row(
+                        Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(44.dp)
-                                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f), RoundedCornerShape(8.dp)),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Icon(
-                                    imageVector = when (item.icon) {
-                                        "shopping_basket" -> Icons.Default.ShoppingCart
-                                        "build" -> Icons.Default.Info
-                                        "bed" -> Icons.Default.Home
-                                        else -> Icons.Default.Star
-                                    },
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(item.title, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                Text(item.category, fontSize = 12.sp, color = Color.Gray)
-                            }
-
                             Text(
-                                text = item.value,
-                                fontWeight = FontWeight.Bold,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontSize = 15.sp,
-                                modifier = Modifier.padding(end = 8.dp)
+                                text = "Nenhuma promoção cadastrada ainda.",
+                                fontSize = 13.sp,
+                                color = Color.Gray,
+                                textAlign = TextAlign.Center
                             )
+                        }
+                    }
+                } else {
+                    stationPromos.forEach { item ->
+                        val displayStart = formatBraDate(item.startDate)
+                        val displayEnd = formatBraDate(item.endDate)
+                        val expired = isPromoExpired(item.endDate)
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, if (expired) Color(0xFFFCA5A5) else Color(0xFFE2E8F0)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                // Row 1: Icon, Title & Description, Price
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(46.dp)
+                                            .background(
+                                                if (expired) Color(0xFFFEF2F2) else Color(0xFFEFF6FF),
+                                                RoundedCornerShape(10.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = when (item.category) {
+                                                "Combustível" -> Icons.Default.Star
+                                                "Conveniência" -> Icons.Default.ShoppingCart
+                                                "Serviços" -> Icons.Default.Build
+                                                else -> Icons.Default.ShoppingCart
+                                            },
+                                            contentDescription = null,
+                                            tint = if (expired) Color(0xFFEF4444) else Color(0xFF2563EB),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        if (!item.description.isNullOrEmpty()) {
+                                            Text(
+                                                text = item.description,
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF64748B),
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Text(
+                                        text = item.value,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (expired) Color(0xFF94A3B8) else Color(0xFF2563EB),
+                                        fontSize = 16.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Subtle separator line
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(Color(0xFFF1F5F9))
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Row 2: Date period (with badge) & Action Buttons
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = null,
+                                            tint = Color(0xFF64748B),
+                                            modifier = Modifier.size(14.dp)
+                                        )
+                                        Text(
+                                            text = if (displayStart.isNotEmpty() && displayEnd.isNotEmpty()) {
+                                                "$displayStart até $displayEnd"
+                                            } else {
+                                                "Período indeterminado"
+                                            },
+                                            fontSize = 12.sp,
+                                            color = Color(0xFF64748B)
+                                        )
+                                        if (expired) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Color(0xFFFEE2E2), RoundedCornerShape(6.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Expirada",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFFEF4444)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        IconButton(
+                                            onClick = {
+                                                editingPromo = item
+                                                isAddPromoOpen = true
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Editar",
+                                                tint = Color(0xFF2563EB),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.deletePromotion(item)
+                                                Toast.makeText(context, "Promoção excluída com sucesso!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Excluir",
+                                                tint = Color(0xFF94A3B8),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -495,55 +645,334 @@ fun MainStationHome(
         )
     }
 
-    // Dynamic Promo append alert dialog
+    // Dynamic Promo append custom dialog (representing screenshot form exactly)
     if (isAddPromoOpen) {
-        var promoTitle by remember { mutableStateOf("") }
-        var promoCat by remember { mutableStateOf("Conveniência") }
-        var promoVal by remember { mutableStateOf("") }
+        val initStart = if (editingPromo != null) formatBraDate(editingPromo?.startDate) else ""
+        val initEnd = if (editingPromo != null) formatBraDate(editingPromo?.endDate) else ""
+        val initPrice = if (editingPromo != null) {
+            editingPromo?.price?.let { if (it > 0.0) String.format(java.util.Locale.US, "%.2f", it).replace('.', ',') else "" } ?: ""
+        } else ""
 
-        AlertDialog(
-            onDismissRequest = { isAddPromoOpen = false },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.addNewPromotion(promoTitle, promoCat, promoVal)
-                        isAddPromoOpen = false
-                        Toast.makeText(context, "Nova promoção lançada!", Toast.LENGTH_SHORT).show()
-                    },
-                    modifier = Modifier.testTag("dialog_save_promo")
-                ) {
-                    Text("Lançar")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { isAddPromoOpen = false }) {
-                    Text("Cancelar")
-                }
-            },
-            title = { Text("Lançar Promoção Premium", fontWeight = FontWeight.Bold) },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = promoTitle,
-                        onValueChange = { promoTitle = it },
-                        label = { Text("Nome da Promoção (ex: Combo Pão de Queijo)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = promoCat,
-                        onValueChange = { promoCat = it },
-                        label = { Text("Categoria (Conveniência, Combustível, Serviços)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                    OutlinedTextField(
-                        value = promoVal,
-                        onValueChange = { promoVal = it },
-                        label = { Text("Desconto / Preço (ex: R$ 9,90 ou 10% OFF)") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+        var promoTitle by remember(editingPromo) { mutableStateOf(editingPromo?.title ?: "") }
+        var promoDesc by remember(editingPromo) { mutableStateOf(editingPromo?.description ?: "") }
+        var promoPriceStr by remember(editingPromo) { mutableStateOf(initPrice) }
+        var promoCat by remember(editingPromo) { mutableStateOf(editingPromo?.category ?: "Conveniência") }
+        var promoStartDate by remember(editingPromo) { mutableStateOf(initStart) }
+        var promoEndDate by remember(editingPromo) { mutableStateOf(initEnd) }
+        var isDropdownExpanded by remember { mutableStateOf(false) }
+
+        val categories = listOf("Conveniência", "Combustível", "Serviços")
+        val calendar = java.util.Calendar.getInstance()
+
+        fun showDatePicker(onDateSelected: (String) -> Unit) {
+            android.app.DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    val formatted = String.format("%02d/%02d/%04d", dayOfMonth, month + 1, year)
+                    onDateSelected(formatted)
+                },
+                calendar.get(java.util.Calendar.YEAR),
+                calendar.get(java.util.Calendar.MONTH),
+                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            ).show()
+        }
+
+        fun formatBraDateToIso(braDate: String): String {
+            return try {
+                val parser = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                val date = parser.parse(braDate)
+                if (date != null) formatter.format(date) else braDate
+            } catch (e: Exception) {
+                braDate
+            }
+        }
+
+        Dialog(onDismissRequest = { isAddPromoOpen = false }) {
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .wrapContentHeight()
+                    .padding(16.dp),
+                shape = RoundedCornerShape(24.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+            ) {
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    // Blue Header Block
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFF2563EB))
+                            .padding(vertical = 24.dp, horizontal = 24.dp)
+                    ) {
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text(
+                                text = if (editingPromo != null) "Editar Promoção" else "Nova Promoção",
+                                fontSize = 22.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                            Text(
+                                text = if (editingPromo != null) "Ajuste os detalhes e o prazo" else "Defina os detalhes e o prazo",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
+                        }
+                    }
+
+                    // Fields Body Block
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(24.dp),
+                        verticalArrangement = Arrangement.spacedBy(16.dp)
+                    ) {
+                        // TÍTULO
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("TÍTULO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            TextField(
+                                value = promoTitle,
+                                onValueChange = { promoTitle = it },
+                                placeholder = { Text("Ex: Promoção no Café", color = Color(0xFF94A3B8), fontSize = 14.sp) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = Color(0xFFF8FAFC),
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = Color(0xFF1E293B),
+                                    unfocusedTextColor = Color(0xFF1E293B)
+                                )
+                            )
+                        }
+
+                        // DESCRIÇÃO (OPCIONAL)
+                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Text("DESCRIÇÃO (OPCIONAL)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                            TextField(
+                                value = promoDesc,
+                                onValueChange = { promoDesc = it },
+                                placeholder = { Text("Ex: Café expresso + pão de queijo", color = Color(0xFF94A3B8), fontSize = 14.sp) },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(52.dp),
+                                shape = RoundedCornerShape(12.dp),
+                                colors = TextFieldDefaults.colors(
+                                    focusedContainerColor = Color(0xFFF8FAFC),
+                                    unfocusedContainerColor = Color(0xFFF8FAFC),
+                                    focusedIndicatorColor = Color.Transparent,
+                                    unfocusedIndicatorColor = Color.Transparent,
+                                    focusedTextColor = Color(0xFF1E293B),
+                                    unfocusedTextColor = Color(0xFF1E293B)
+                                )
+                            )
+                        }
+
+                        // Row: PREÇO (R$) and CATEGORIA
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // PREÇO (R$)
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("PREÇO (R$)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                                TextField(
+                                    value = promoPriceStr,
+                                    onValueChange = { promoPriceStr = it },
+                                    placeholder = { Text("9,90", color = Color(0xFF94A3B8), fontSize = 14.sp) },
+                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp),
+                                    shape = RoundedCornerShape(12.dp),
+                                    colors = TextFieldDefaults.colors(
+                                        focusedContainerColor = Color(0xFFF8FAFC),
+                                        unfocusedContainerColor = Color(0xFFF8FAFC),
+                                        focusedIndicatorColor = Color.Transparent,
+                                        unfocusedIndicatorColor = Color.Transparent,
+                                        focusedTextColor = Color(0xFF1E293B),
+                                        unfocusedTextColor = Color(0xFF1E293B)
+                                    )
+                                )
+                            }
+
+                            // CATEGORIA
+                            Box(modifier = Modifier.weight(1f)) {
+                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                    Text("CATEGORIA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .height(52.dp)
+                                            .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
+                                            .clickable { isDropdownExpanded = true }
+                                            .padding(horizontal = 14.dp),
+                                        contentAlignment = Alignment.CenterStart
+                                    ) {
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(promoCat, color = Color(0xFF1E293B), fontSize = 14.sp)
+                                            Icon(
+                                                imageVector = Icons.Default.KeyboardArrowDown,
+                                                contentDescription = null,
+                                                tint = Color(0xFF64748B)
+                                            )
+                                        }
+                                    }
+                                    DropdownMenu(
+                                        expanded = isDropdownExpanded,
+                                        onDismissRequest = { isDropdownExpanded = false }
+                                    ) {
+                                        categories.forEach { cat ->
+                                            DropdownMenuItem(
+                                                text = { Text(cat) },
+                                                onClick = {
+                                                    promoCat = cat
+                                                    isDropdownExpanded = false
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        // Row: INÍCIO and FIM
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // INÍCIO
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("INÍCIO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                        .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
+                                        .clickable { showDatePicker { promoStartDate = it } }
+                                        .padding(horizontal = 14.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (promoStartDate.isEmpty()) "dd / mm / aaaa" else promoStartDate,
+                                            color = if (promoStartDate.isEmpty()) Color(0xFF94A3B8) else Color(0xFF1E293B),
+                                            fontSize = 14.sp
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = "Selecionar data de início",
+                                            tint = Color(0xFF64748B),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+
+                            // FIM
+                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                                Text("FIM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(52.dp)
+                                        .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
+                                        .clickable { showDatePicker { promoEndDate = it } }
+                                        .padding(horizontal = 14.dp),
+                                    contentAlignment = Alignment.CenterStart
+                                ) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Text(
+                                            text = if (promoEndDate.isEmpty()) "dd / mm / aaaa" else promoEndDate,
+                                            color = if (promoEndDate.isEmpty()) Color(0xFF94A3B8) else Color(0xFF1E293B),
+                                            fontSize = 14.sp
+                                        )
+                                        Icon(
+                                            imageVector = Icons.Default.DateRange,
+                                            contentDescription = "Selecionar data de fim",
+                                            tint = Color(0xFF64748B),
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        // Bottom Actions Row
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Button(
+                                onClick = { isAddPromoOpen = false },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9)),
+                                modifier = Modifier.weight(1f).height(52.dp),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text("Cancelar", fontWeight = FontWeight.Bold, color = Color(0xFF475569))
+                            }
+                            Button(
+                                onClick = {
+                                    val price = promoPriceStr.replace(',', '.').toDoubleOrNull() ?: 0.0
+                                    val isoStart = formatBraDateToIso(promoStartDate)
+                                    val isoEnd = formatBraDateToIso(promoEndDate)
+                                    
+                                    viewModel.addNewPromotion(
+                                        title = promoTitle,
+                                        description = promoDesc,
+                                        price = price,
+                                        category = promoCat,
+                                        startDate = isoStart,
+                                        endDate = isoEnd,
+                                        icon = when (promoCat) {
+                                            "Combustível" -> "local_gas_station"
+                                            "Conveniência" -> "shopping_basket"
+                                            "Serviços" -> "build"
+                                            else -> "sell"
+                                        },
+                                        docId = editingPromo?.docId
+                                    )
+                                    isAddPromoOpen = false
+                                    if (editingPromo != null) {
+                                        Toast.makeText(context, "Promoção atualizada!", Toast.LENGTH_SHORT).show()
+                                    } else {
+                                        Toast.makeText(context, "Nova promoção lançada!", Toast.LENGTH_SHORT).show()
+                                    }
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
+                                modifier = Modifier.weight(1f).height(52.dp).testTag("dialog_save_promo"),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Text(
+                                    text = if (editingPromo != null) "Salvar" else "Criar",
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color.White
+                                )
+                            }
+                        }
+                    }
                 }
             }
-        )
+        }
     }
 }
 
@@ -803,5 +1232,33 @@ fun StationBottomNavigationBar(
             icon = { Icon(Icons.Default.Person, null) },
             label = { Text("Conta", fontSize = 10.sp) }
         )
+    }
+}
+
+fun formatBraDate(rawDate: String?): String {
+    if (rawDate.isNullOrEmpty()) return ""
+    if (rawDate.contains("/")) return rawDate
+    return try {
+        val isoParser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val braFormatter = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+        val date = isoParser.parse(rawDate)
+        if (date != null) braFormatter.format(date) else rawDate
+    } catch (e: Exception) {
+        rawDate
+    }
+}
+
+fun isPromoExpired(rawEndDate: String?): Boolean {
+    if (rawEndDate.isNullOrEmpty()) return false
+    return try {
+        val end = if (rawEndDate.contains("/")) {
+            java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).parse(rawEndDate)
+        } else {
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(rawEndDate)
+        }
+        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse("2026-05-25")
+        end != null && end.before(today)
+    } catch (e: Exception) {
+        false
     }
 }

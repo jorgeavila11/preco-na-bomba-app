@@ -32,7 +32,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.data.*
+import com.example.ui.viewmodel.PromoItem
 import com.example.ui.theme.*
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import com.example.ui.viewmodel.PrecoNaBombaViewModel
 import com.example.ui.viewmodel.Screen
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -334,6 +337,7 @@ fun MainDriverHome(
     val profileState by viewModel.profile.collectAsState()
     val isPremium = profileState?.isPremium ?: false
     val averageConsumption = profileState?.averageConsumption ?: 12.0
+    val promos by viewModel.promoList.collectAsState()
     val context = LocalContext.current
 
     val startupLocationPermissionLauncher = rememberLauncherForActivityResult(
@@ -584,6 +588,7 @@ fun MainDriverHome(
                 } else {
                     items(filteredStations) { station ->
                         val isCheapest = station.id == cheapestStationId
+                        val stationPromos = promos.filter { it.stationId == station.id }
                         StationCardItem(
                             station = station,
                             activeFilter = activeFilter,
@@ -594,7 +599,8 @@ fun MainDriverHome(
                             },
                             isCheapest = isCheapest,
                             isPremium = isPremium,
-                            averageConsumption = averageConsumption
+                            averageConsumption = averageConsumption,
+                            promotions = stationPromos
                         )
                     }
                 }
@@ -611,7 +617,8 @@ fun StationCardItem(
     onSelectOnMap: () -> Unit,
     isCheapest: Boolean = false,
     isPremium: Boolean = false,
-    averageConsumption: Double = 12.0
+    averageConsumption: Double = 12.0,
+    promotions: List<PromoItem> = emptyList()
 ) {
     val context = LocalContext.current
     // Custom Brand initials & colors to match high contrast design theme
@@ -955,6 +962,142 @@ fun StationCardItem(
                         color = Color.Gray,
                         fontWeight = FontWeight.Medium
                     )
+                }
+            }
+
+            // Promotions section inside the card
+            if (promotions.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                HorizontalDivider(color = BorderSlate100, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(6.dp))
+                if (isPremium) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp),
+                        modifier = Modifier.padding(bottom = 6.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = null,
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(14.dp)
+                        )
+                        Text(
+                            text = "PROMOÇÕES PARCEIRAS ATIVAS 💎",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFFD97706)
+                        )
+                    }
+
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        promotions.forEach { promo ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color(0xFFF8FAFC), RoundedCornerShape(10.dp))
+                                    .border(1.dp, Color(0xFFF1F5F9), RoundedCornerShape(10.dp))
+                                    .padding(10.dp),
+                                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = when (promo.category) {
+                                        "Combustível" -> Icons.Default.Star
+                                        "Conveniência" -> Icons.Default.ShoppingCart
+                                        "Serviços" -> Icons.Default.Build
+                                        else -> Icons.Default.Star
+                                    },
+                                    contentDescription = null,
+                                    tint = Color(0xFF2563EB),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = promo.title,
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = TextColOnSurface
+                                    )
+                                    if (!promo.description.isNullOrEmpty()) {
+                                        Text(
+                                            text = promo.description,
+                                            fontSize = 11.sp,
+                                            color = Color.Gray
+                                        )
+                                    }
+                                    
+                                    val startBra = try {
+                                        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                                        val formatter = java.text.SimpleDateFormat("dd/MM", java.util.Locale.US)
+                                        val date = parser.parse(promo.startDate ?: "")
+                                        date?.let { formatter.format(it) } ?: ""
+                                    } catch (e: Exception) {
+                                        ""
+                                    }
+                                    val endBra = try {
+                                        val parser = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                                        val formatter = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+                                        val date = parser.parse(promo.endDate ?: "")
+                                        date?.let { formatter.format(it) } ?: ""
+                                    } catch (e: Exception) {
+                                        ""
+                                    }
+                                    if (startBra.isNotEmpty() && endBra.isNotEmpty()) {
+                                        Text(
+                                            text = "Válido de $startBra até $endBra",
+                                            fontSize = 9.5.sp,
+                                            color = Color(0xFFD97706),
+                                            fontWeight = FontWeight.Bold,
+                                            modifier = Modifier.padding(top = 2.dp)
+                                        )
+                                    }
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(0xFFEFF6FF), RoundedCornerShape(6.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = promo.value,
+                                        fontSize = 12.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color(0xFF2563EB)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                } else {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(Color(0xFFFFFBEB), RoundedCornerShape(10.dp))
+                            .border(1.dp, Color(0xFFFEF3C7), RoundedCornerShape(10.dp))
+                            .padding(10.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = Color(0xFFD97706),
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Promoções exclusivas disponíveis! 💎",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFFB45309)
+                            )
+                            Text(
+                                text = "Faça upgrade para ver as ofertas deste posto parceiro.",
+                                fontSize = 10.5.sp,
+                                color = Color(0xFFD97706)
+                            )
+                        }
+                    }
                 }
             }
         }

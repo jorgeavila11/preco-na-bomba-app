@@ -444,9 +444,88 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     private val _promoList = MutableStateFlow(emptyList<PromoItem>())
     val promoList: StateFlow<List<PromoItem>> = _promoList.asStateFlow()
 
+    fun syncFromFirestore() {
+        viewModelScope.launch {
+            FirebaseManager.fetchAllStationsFromFirestore { cloudStations ->
+                if (cloudStations.isNotEmpty()) {
+                    viewModelScope.launch {
+                        for (cloudStation in cloudStations) {
+                            val local = repository.getStationByEmail(cloudStation.email ?: "")
+                                ?: repository.getStationByCnpj(cloudStation.cnpj ?: "")
+                            if (local == null) {
+                                repository.insertStation(cloudStation)
+                            } else {
+                                repository.insertStation(
+                                    local.copy(
+                                        priceGasoline = cloudStation.priceGasoline,
+                                        priceEthanol = cloudStation.priceEthanol,
+                                        priceDiesel = cloudStation.priceDiesel,
+                                        name = cloudStation.name,
+                                        address = cloudStation.address,
+                                        isPartner = cloudStation.isPartner,
+                                        razaoSocial = cloudStation.razaoSocial
+                                    )
+                                )
+                            }
+                        }
+                        fetchPromotions()
+                    }
+                } else {
+                    fetchPromotions()
+                }
+            }
+        }
+    }
+
+    fun fetchPromotions() {
+        FirebaseManager.fetchAllPromotionsFromFirestore { cloudPromos ->
+            viewModelScope.launch {
+                val stationsList = repository.allStations.first()
+                val currentUid = FirebaseManager.getCurrentUserUid()
+                val currentUserEmail = FirebaseManager.getCurrentUserEmail()
+                val currentId = currentStationId.value
+                val currentPlan = ownerStationPlan.value
+                val currentName = editStationName.value
+
+                val mappedPromos = cloudPromos.map { promo ->
+                    val matchedStation = stationsList.find {
+                        val matchesRazao = !it.razaoSocial.isNullOrBlank() && (it.razaoSocial == promo.firestoreStationId)
+                        val matchesEmail = !it.email.isNullOrBlank() && (it.email?.lowercase() == promo.firestoreStationId?.lowercase())
+                        matchesRazao || matchesEmail
+                    }
+                    if (matchedStation != null) {
+                        promo.copy(
+                            stationId = matchedStation.id,
+                            stationName = matchedStation.name,
+                            isFromPremiumStation = matchedStation.isPartner
+                        )
+                    } else if (!currentUid.isNullOrBlank() && promo.firestoreStationId == currentUid) {
+                        promo.copy(
+                            stationId = currentId,
+                            stationName = currentName.ifEmpty { "Meu Posto" },
+                            isFromPremiumStation = currentPlan == "Conta Premium"
+                        )
+                    } else if (!currentUserEmail.isNullOrBlank() && promo.firestoreStationId?.lowercase() == currentUserEmail.lowercase()) {
+                        promo.copy(
+                            stationId = currentId,
+                            stationName = currentName.ifEmpty { "Meu Posto" },
+                            isFromPremiumStation = currentPlan == "Conta Premium"
+                        )
+                    } else {
+                        promo
+                    }
+                }
+                _promoList.value = mappedPromos
+            }
+        }
+    }
+
     init {
         viewModelScope.launch {
             repository.seedDatabaseIfNeeded()
+            syncFromFirestore()
+        }
+        viewModelScope.launch {
             // Sync initial owner dashboard prices with database or defaults dynamically based on selected/registered station ID
             kotlinx.coroutines.flow.combine(allStations, currentStationId) { stations, activeId ->
                 val activeStation = stations.find { it.id == activeId }
@@ -697,7 +776,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                                     cnpj = "00.000.000/0001-00",
                                                     email = email,
                                                     phone = "(11) 98765-4321",
-                                                    razaoSocial = ""
+                                                    razaoSocial = uid
                                                 )
                                                 repository.insertStation(defaultStation)
                                                 val savedStation = repository.getStationByEmail(email)
@@ -945,35 +1024,96 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
         }
     }
 
-    // Owner: Insert a new promotion dynamically on dashboard
-    fun addNewPromotion(title: String, category: String, value: String, icon: String = "sell") {
-        if (title.isEmpty() || value.isEmpty()) return
+    // Owner: Insert or Update a promotion dynamically on dashboard
+    fun addNewPromotion(
+        title: String,
+        description: String,
+        price: Double,
+        category: String,
+        startDate: String,
+        endDate: String,
+        icon: String = "sell",
+        docId: String? = null
+    ) {
+        if (title.isEmpty()) return
         val currentList = _promoList.value.toMutableList()
         val currentId = currentStationId.value
         val isPremium = ownerStationPlan.value == "Conta Premium"
         val currentName = editStationName.value
+        val ownerUid = FirebaseManager.getCurrentUserUid() ?: ""
         
-        currentList.add(0, PromoItem(
-            title = title,
-            category = category,
-            value = value,
-            icon = icon,
-            stationName = currentName,
-            distanceKm = "0.7 km",
-            isFromPremiumStation = isPremium,
-            stationId = currentId
-        ))
+        val formattedPrice = String.format("R$ %.2f", price).replace('.', ',')
+
+        if (docId != null) {
+            val idx = currentList.indexOfFirst { it.docId == docId }
+            val updatedPromo = PromoItem(
+                title = title,
+                category = category,
+                value = formattedPrice,
+                icon = icon,
+                stationName = currentName,
+                distanceKm = "0.7 km",
+                isFromPremiumStation = isPremium,
+                stationId = currentId,
+                description = description,
+                startDate = startDate,
+                endDate = endDate,
+                price = price,
+                firestoreStationId = ownerUid,
+                docId = docId
+            )
+            if (idx != -1) {
+                currentList[idx] = updatedPromo
+            } else {
+                currentList.add(0, updatedPromo)
+            }
+        } else {
+            currentList.add(0, PromoItem(
+                title = title,
+                category = category,
+                value = formattedPrice,
+                icon = icon,
+                stationName = currentName,
+                distanceKm = "0.7 km",
+                isFromPremiumStation = isPremium,
+                stationId = currentId,
+                description = description,
+                startDate = startDate,
+                endDate = endDate,
+                price = price,
+                firestoreStationId = ownerUid
+            ))
+        }
         _promoList.value = currentList
         
         // Synchronize promotion directly to Firestore under "promotions" collection
         FirebaseManager.syncPromotionToFirestore(
-            stationId = currentId,
+            stationIdStr = ownerUid,
             title = title,
+            description = description,
+            price = price,
             category = category,
-            value = value,
-            stationName = currentName,
-            isPremium = isPremium
+            startDate = startDate,
+            endDate = endDate,
+            isPremium = isPremium,
+            docId = docId,
+            onComplete = { did ->
+                fetchPromotions()
+            }
         )
+    }
+
+    fun deletePromotion(promo: PromoItem) {
+        val currentList = _promoList.value.toMutableList()
+        currentList.remove(promo)
+        _promoList.value = currentList
+        promo.docId?.let { docId ->
+            FirebaseManager.deletePromotionFromFirestore(docId) { success ->
+                if (success) {
+                    fetchPromotions()
+                }
+            }
+        }
     }
 }
 
@@ -985,5 +1125,11 @@ data class PromoItem(
     val stationName: String,
     val distanceKm: String,
     val isFromPremiumStation: Boolean,
-    val stationId: Int = 5
+    val stationId: Int = 5,
+    val description: String? = null,
+    val startDate: String? = null,
+    val endDate: String? = null,
+    val price: Double? = null,
+    val firestoreStationId: String? = null,
+    val docId: String? = null
 )
