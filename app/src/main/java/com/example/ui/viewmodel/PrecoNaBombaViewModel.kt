@@ -445,6 +445,26 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     val promoList: StateFlow<List<PromoItem>> = _promoList.asStateFlow()
 
     fun syncFromFirestore() {
+        val uid = FirebaseManager.getCurrentUserUid()
+        if (uid != null) {
+            FirebaseManager.fetchProfileFromFirestore(uid) { fetchedProfile, role ->
+                if (fetchedProfile != null) {
+                    viewModelScope.launch {
+                        val isStationOwner = (role == "station_owner" || fetchedProfile.email.contains("posto", ignoreCase = true) || fetchedProfile.email == "exemplo@posto.com.br")
+                        repository.updateProfile(fetchedProfile, syncToFirestore = !isStationOwner)
+                        if (isStationOwner) {
+                            val email = fetchedProfile.email
+                            val matchedStation = repository.getStationByEmail(email)
+                            if (matchedStation != null) {
+                                currentStationId.value = matchedStation.id
+                                ownerStationPlan.value = if (matchedStation.isPartner) "Conta Premium" else "Conta Pro"
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         viewModelScope.launch {
             FirebaseManager.fetchAllStationsFromFirestore { cloudStations ->
                 if (cloudStations.isNotEmpty()) {
@@ -742,6 +762,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                 if (matchedStation != null) {
                                     currentStationId.value = matchedStation.id
                                     ownerStationPlan.value = if (matchedStation.isPartner) "Conta Premium" else "Conta Pro"
+                                    syncFromFirestore()
                                     navigateTo(Screen.MainStationHome)
                                     onResult(true, null)
                                 } else {
@@ -754,6 +775,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                                     currentStationId.value = savedStation.id
                                                     ownerStationPlan.value = if (savedStation.isPartner) "Conta Premium" else "Conta Pro"
                                                 }
+                                                syncFromFirestore()
                                                 navigateTo(Screen.MainStationHome)
                                                 onResult(true, null)
                                             } else {
@@ -784,6 +806,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                                     currentStationId.value = savedStation.id
                                                 }
                                                 ownerStationPlan.value = "Conta Pro"
+                                                syncFromFirestore()
                                                 navigateTo(Screen.MainStationHome)
                                                 onResult(true, null)
                                             }
@@ -791,6 +814,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                     }
                                 }
                             } else {
+                                syncFromFirestore()
                                 navigateTo(Screen.MainDriverHome)
                                 onResult(true, null)
                             }
@@ -838,6 +862,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                         } else {
                             navigateTo(Screen.MainDriverHome)
                         }
+                        syncFromFirestore()
                         onResult(true, null)
                     }
                 }
