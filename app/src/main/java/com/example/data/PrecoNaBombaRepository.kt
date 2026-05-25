@@ -37,17 +37,22 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
         // Checking if profile exists, if empty, seed default profile
         val existingProfile = dao.getProfile()
         if (existingProfile == null) {
+            val currentUserEmail = com.example.data.FirebaseManager.getCurrentUserEmail()
+            val defaultEmail = currentUserEmail ?: "joao.silva@email.com"
+            val isGeovana = defaultEmail.equals("geovana@hotmail.com", ignoreCase = true)
+            val defaultName = if (currentUserEmail != null) defaultEmail.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() } else "João Silva"
+
             dao.insertProfile(
                 DriverProfile(
                     id = 1,
-                    name = "João Silva",
-                    email = "joao.silva@email.com",
+                    name = defaultName,
+                    email = defaultEmail,
                     phone = "(11) 98765-4321",
                     vehicleModel = "Toyota Corolla",
                     vehiclePlate = "ABC-1234",
                     averageConsumption = 12.0,
                     fuelType = "Flex",
-                    isPremium = false
+                    isPremium = isGeovana
                 )
             )
         }
@@ -176,6 +181,14 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
     suspend fun updateStation(station: FuelStation) {
         dao.updateStation(station)
         com.example.data.FirebaseManager.syncStationPriceToFirestore(station)
+    }
+
+    suspend fun insertStationLocally(station: FuelStation) {
+        dao.insertStation(station)
+    }
+
+    suspend fun insertStationsLocally(stations: List<FuelStation>) {
+        dao.insertStations(stations)
     }
 
     suspend fun insertStation(station: FuelStation) {

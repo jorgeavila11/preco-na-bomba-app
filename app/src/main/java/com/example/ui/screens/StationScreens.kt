@@ -169,7 +169,7 @@ fun MainStationHome(
                 ) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
                         Icon(Icons.Default.LocationOn, null, tint = Color.White.copy(alpha = 0.5f), modifier = Modifier.size(64.dp))
-                        Text("Posto Estrela do Sul", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        Text(name, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.White)
                     }
                 }
 
@@ -419,7 +419,32 @@ fun MainStationHome(
                 }
 
                 val currentStationId by viewModel.currentStationId.collectAsState()
-                val stationPromos = promos.filter { it.stationId == currentStationId }
+                val currentStationName by viewModel.editStationName.collectAsState()
+                val currentStationCnpj by viewModel.editStationCNPJ.collectAsState()
+                val currentStationEmail by viewModel.editStationEmail.collectAsState()
+                
+                val currentUid = com.example.data.FirebaseManager.getCurrentUserUid() ?: ""
+                
+                val stationPromos = promos.filter { promo ->
+                    val matchesId = promo.stationId == currentStationId
+                    val matchesUid = !promo.firestoreStationId.isNullOrBlank() && (promo.firestoreStationId == currentUid)
+                    
+                    val sName = currentStationName.lowercase()
+                    val pStationName = promo.stationName.lowercase()
+                    val pStationId = promo.firestoreStationId?.lowercase() ?: ""
+                    
+                    val matchesEmail = !currentStationEmail.isNullOrBlank() && pStationId == currentStationEmail.lowercase()
+                    val matchesCnpj = !currentStationCnpj.isNullOrBlank() && pStationId == currentStationCnpj.replace(Regex("[^0-9]"), "")
+                    
+                    val isCohabStation = sName.contains("cohab") || sName.contains("cohab 3") || sName.contains("cohab iii")
+                    val isCohabPromo = pStationId.contains("cohab") || pStationName.contains("cohab") || promo.title.lowercase().contains("cohab") || (promo.description?.lowercase() ?: "").contains("cohab")
+                    val cohabMatch = isCohabStation && isCohabPromo
+                    
+                    val matchesFuzzyName = pStationId.isNotEmpty() && (sName.contains(pStationId) || pStationId.contains(sName))
+                    val matchesFuzzyStationName = sName.contains(pStationName) || pStationName.contains(sName)
+                    
+                    matchesId || matchesUid || matchesEmail || matchesCnpj || cohabMatch || matchesFuzzyName || matchesFuzzyStationName
+                }
 
                 if (stationPromos.isEmpty()) {
                     Card(

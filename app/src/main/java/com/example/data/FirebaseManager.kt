@@ -357,11 +357,31 @@ object FirebaseManager {
         val firestore = firestoreInstance ?: return
         val docId = station.id.toString()
         val currentUid = authInstance?.currentUser?.uid ?: ""
+        val currentUserEmail = authInstance?.currentUser?.email ?: ""
 
-        val isPartnerStation = station.isPartner || currentUid.isNotEmpty()
+        val isValidTargetUid = !station.razaoSocial.isNullOrBlank() && 
+                !station.razaoSocial.contains(" ") && 
+                station.razaoSocial.length >= 10
 
-        if (isPartnerStation) {
-            val targetUid = if (currentUid.isNotEmpty()) currentUid else (station.email ?: "")
+        // Determine if this station belongs directly to the logged-in station owner
+        val isMyStation = currentUid.isNotEmpty() && (
+            (isValidTargetUid && station.razaoSocial == currentUid) ||
+            (!station.email.isNullOrBlank() && station.email.trim().lowercase() == currentUserEmail.trim().lowercase())
+        )
+
+        // Only sync in nested/premium format if it is actually my station, or if it has its own valid target UID,
+        // or if it has an email representing a partner and we are not logged in as a conflicting user.
+        val shouldSyncAsPartner = isMyStation || (station.isPartner && (isValidTargetUid || !station.email.isNullOrBlank()))
+
+        if (shouldSyncAsPartner) {
+            val targetUid = if (isMyStation) {
+                currentUid
+            } else if (isValidTargetUid) {
+                station.razaoSocial!!
+            } else {
+                station.email ?: ""
+            }
+
             if (targetUid.isNotEmpty()) {
                 val nestedData = hashMapOf(
                     "address" to station.address,
@@ -383,7 +403,7 @@ object FirebaseManager {
                     "cnpj" to (station.cnpj ?: ""),
                     "email" to (station.email ?: ""),
                     "phone" to (station.phone ?: ""),
-                    "razaoSocial" to (station.razaoSocial ?: ""),
+                    "razaoSocial" to (if (isValidTargetUid) station.razaoSocial!! else station.razaoSocial ?: ""),
                     "isPremium" to true
                 )
 
@@ -419,8 +439,8 @@ object FirebaseManager {
                 "cnpj" to (station.cnpj ?: ""),
                 "email" to (station.email ?: ""),
                 "phone" to (station.phone ?: ""),
-                "razaoSocial" to (station.razaoSocial ?: ""),
-                "ownerUid" to currentUid
+                "razaoSocial" to (if (isValidTargetUid) "" else station.razaoSocial ?: ""),
+                "ownerUid" to (if (isMyStation) currentUid else "")
             )
 
             firestore.collection("stations").document(docId)

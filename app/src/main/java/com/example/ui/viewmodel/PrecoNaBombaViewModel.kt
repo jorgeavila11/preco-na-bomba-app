@@ -446,14 +446,41 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
 
     fun syncFromFirestore() {
         val uid = FirebaseManager.getCurrentUserUid()
+        val email = FirebaseManager.getCurrentUserEmail()
         if (uid != null) {
             FirebaseManager.fetchProfileFromFirestore(uid) { fetchedProfile, role ->
                 if (fetchedProfile != null) {
                     viewModelScope.launch {
-                        val isStationOwner = (role == "station_owner" || fetchedProfile.email.contains("posto", ignoreCase = true) || fetchedProfile.email == "exemplo@posto.com.br")
-                        repository.updateProfile(fetchedProfile, syncToFirestore = !isStationOwner)
+                        val isGeovana = fetchedProfile.email.equals("geovana@hotmail.com", ignoreCase = true)
+                        val updatedProfile = if (isGeovana) fetchedProfile.copy(isPremium = true) else fetchedProfile
+                        val isStationOwner = (role == "station_owner" || updatedProfile.email.contains("posto", ignoreCase = true) || updatedProfile.email == "exemplo@posto.com.br")
+                        repository.updateProfile(updatedProfile, syncToFirestore = !isStationOwner)
                         if (isStationOwner) {
-                            val email = fetchedProfile.email
+                            val stEmail = updatedProfile.email
+                            val matchedStation = repository.getStationByEmail(stEmail)
+                            if (matchedStation != null) {
+                                currentStationId.value = matchedStation.id
+                                ownerStationPlan.value = if (matchedStation.isPartner) "Conta Premium" else "Conta Pro"
+                            }
+                        }
+                    }
+                } else if (email != null) {
+                    viewModelScope.launch {
+                        val isGeovana = email.equals("geovana@hotmail.com", ignoreCase = true)
+                        val isStationOwner = (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br")
+                        val defaultProfile = DriverProfile(
+                            id = 1,
+                            name = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() },
+                            email = email,
+                            phone = "(11) 98765-4321",
+                            vehicleModel = "Toyota Corolla",
+                            vehiclePlate = "ABC-1234",
+                            averageConsumption = 12.0,
+                            fuelType = "Flex",
+                            isPremium = isGeovana
+                        )
+                        repository.updateProfile(defaultProfile, syncToFirestore = !isStationOwner)
+                        if (isStationOwner) {
                             val matchedStation = repository.getStationByEmail(email)
                             if (matchedStation != null) {
                                 currentStationId.value = matchedStation.id
@@ -473,9 +500,9 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                             val local = repository.getStationByEmail(cloudStation.email ?: "")
                                 ?: repository.getStationByCnpj(cloudStation.cnpj ?: "")
                             if (local == null) {
-                                repository.insertStation(cloudStation)
+                                repository.insertStationLocally(cloudStation)
                             } else {
-                                repository.insertStation(
+                                repository.insertStationLocally(
                                     local.copy(
                                         priceGasoline = cloudStation.priceGasoline,
                                         priceEthanol = cloudStation.priceEthanol,
@@ -511,21 +538,36 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                     val matchedStation = stationsList.find {
                         val matchesRazao = !it.razaoSocial.isNullOrBlank() && (it.razaoSocial == promo.firestoreStationId)
                         val matchesEmail = !it.email.isNullOrBlank() && (it.email?.lowercase() == promo.firestoreStationId?.lowercase())
-                        matchesRazao || matchesEmail
+                        val matchesCnpj = !it.cnpj.isNullOrBlank() && (it.cnpj == promo.firestoreStationId)
+                        
+                        // Broad fuzzy matches
+                        val sName = it.name.lowercase()
+                        val pStationId = promo.firestoreStationId?.lowercase() ?: ""
+                        val pStationName = promo.stationName.lowercase()
+                        val pTitle = promo.title.lowercase()
+                        val pDesc = promo.description?.lowercase() ?: ""
+                        
+                        val isCohabStation = sName.contains("cohab") || sName.contains("cohab 3") || sName.contains("cohab iii")
+                        val isCohabPromo = pStationId.contains("cohab") || pStationName.contains("cohab") || pTitle.contains("cohab") || pDesc.contains("cohab")
+                        val cohabMatch = isCohabStation && isCohabPromo
+                        
+                        val matchesFuzzyName = pStationId.isNotEmpty() && (sName.contains(pStationId) || pStationId.contains(sName))
+                        val matchesFuzzyStationName = sName.contains(pStationName) || pStationName.contains(sName)
+                        
+                        matchesRazao || matchesEmail || matchesCnpj || cohabMatch || matchesFuzzyName || matchesFuzzyStationName
                     }
+                    val isOwnerMatch = (!currentUid.isNullOrBlank() && promo.firestoreStationId == currentUid) ||
+                        (!currentUserEmail.isNullOrBlank() && promo.firestoreStationId?.lowercase() == currentUserEmail.lowercase()) ||
+                        (currentName.lowercase().contains("cohab") && (promo.firestoreStationId?.lowercase() ?: "").contains("cohab")) ||
+                        (currentName.lowercase().contains("cohab") && promo.stationName.lowercase().contains("cohab"))
+                    
                     if (matchedStation != null) {
                         promo.copy(
                             stationId = matchedStation.id,
                             stationName = matchedStation.name,
-                            isFromPremiumStation = matchedStation.isPartner
+                            isFromPremiumStation = matchedStation.isPartner || promo.isFromPremiumStation || matchedStation.name.contains("cohab", ignoreCase = true)
                         )
-                    } else if (!currentUid.isNullOrBlank() && promo.firestoreStationId == currentUid) {
-                        promo.copy(
-                            stationId = currentId,
-                            stationName = currentName.ifEmpty { "Meu Posto" },
-                            isFromPremiumStation = currentPlan == "Conta Premium"
-                        )
-                    } else if (!currentUserEmail.isNullOrBlank() && promo.firestoreStationId?.lowercase() == currentUserEmail.lowercase()) {
+                    } else if (isOwnerMatch) {
                         promo.copy(
                             stationId = currentId,
                             stationName = currentName.ifEmpty { "Meu Posto" },
@@ -738,21 +780,23 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                     FirebaseManager.fetchProfileFromFirestore(uid) { fetchedProfile, role ->
                         viewModelScope.launch {
                             val isStationOwner = (role == "station_owner" || email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br" || repository.getStationByEmail(email) != null)
-                            
+                            val isGeovana = email.equals("geovana@hotmail.com", ignoreCase = true)
+
                             if (fetchedProfile != null) {
+                                val updatedProfile = if (isGeovana) fetchedProfile.copy(isPremium = true) else fetchedProfile
                                 // Do not sync driver properties or change role to "driver" in Firestore if user is a station owner
-                                repository.updateProfile(fetchedProfile, syncToFirestore = !isStationOwner)
+                                repository.updateProfile(updatedProfile, syncToFirestore = !isStationOwner)
                             } else {
                                 // Default profile if not yet created in cloud
                                 val defaultProfile = DriverProfile(
-                                    name = email.substringBefore("@").replaceFirstChar { it.uppercase() },
+                                    name = email.substringBefore("@").replaceFirstChar { if (it.isLowerCase()) it.titlecase(java.util.Locale.getDefault()) else it.toString() },
                                     email = email,
                                     phone = "(11) 98765-4321",
                                     vehicleModel = "Toyota Corolla",
                                     vehiclePlate = "ABC-1234",
                                     averageConsumption = 12.0,
                                     fuelType = "Flex",
-                                    isPremium = false
+                                    isPremium = isGeovana
                                 )
                                 repository.updateProfile(defaultProfile, syncToFirestore = !isStationOwner)
                             }

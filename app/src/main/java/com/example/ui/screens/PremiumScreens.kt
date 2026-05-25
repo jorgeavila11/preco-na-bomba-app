@@ -679,11 +679,8 @@ fun PremiumPromotionsScreen(
             val promos by viewModel.promoList.collectAsState()
             val filteredPromos = remember(promos, activePromoFilter) {
                 promos.filter {
-                    // Rule 4: "As promoções cadastradas pelos 'Postos Premium' só devem ser visíveis no mapa/feed para os usuários 'Motoristas Premium'."
-                    // Thus, only display if the promoting station has isFromPremiumStation == true
-                    val matchesPremiumCreator = it.isFromPremiumStation
                     val matchesCategory = activePromoFilter == "Tudo" || it.category.contains(activePromoFilter, ignoreCase = true)
-                    matchesPremiumCreator && matchesCategory
+                    matchesCategory
                 }
             }
 
