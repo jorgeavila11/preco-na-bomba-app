@@ -353,6 +353,44 @@ object FirebaseManager {
             }
     }
 
+    fun fetchAllRefuelingsFromFirestore(onResult: (List<Refueling>) -> Unit) {
+        val firestore = firestoreInstance
+        if (firestore == null) {
+            onResult(emptyList())
+            return
+        }
+        val uid = authInstance?.currentUser?.uid ?: "anonymous"
+        firestore.collection("refuelings")
+            .whereEqualTo("userId", uid)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                val list = mutableListOf<Refueling>()
+                var refId = 1
+                for (doc in querySnapshot.documents) {
+                    val stationName = doc.getString("stationName") ?: "Posto"
+                    val date = doc.getString("date") ?: ""
+                    val liters = doc.getDouble("liters") ?: 0.0
+                    val pricePerLiter = doc.getDouble("pricePerLiter") ?: 0.0
+                    val totalPaid = doc.getDouble("totalPaid") ?: 0.0
+                    list.add(
+                        Refueling(
+                            id = refId++,
+                            stationName = stationName,
+                            date = date,
+                            liters = liters,
+                            pricePerLiter = pricePerLiter,
+                            totalPaid = totalPaid
+                        )
+                    )
+                }
+                onResult(list)
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Erro ao buscar abastecimentos do Firestore: ${exception.message}")
+                onResult(emptyList())
+            }
+    }
+
     fun syncStationPriceToFirestore(station: FuelStation) {
         val firestore = firestoreInstance ?: return
         val docId = station.id.toString()

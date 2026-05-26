@@ -588,7 +588,7 @@ fun MainDriverHome(
                 } else {
                     items(filteredStations) { station ->
                         val isCheapest = station.id == cheapestStationId
-                        val stationPromos = promos.filter { it.stationId == station.id }
+                        val stationPromos = promos.filter { it.stationId == station.id && !isPromoExpired(it.endDate) }
                         StationCardItem(
                             station = station,
                             activeFilter = activeFilter,

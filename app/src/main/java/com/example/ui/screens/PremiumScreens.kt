@@ -680,7 +680,7 @@ fun PremiumPromotionsScreen(
             val filteredPromos = remember(promos, activePromoFilter) {
                 promos.filter {
                     val matchesCategory = activePromoFilter == "Tudo" || it.category.contains(activePromoFilter, ignoreCase = true)
-                    matchesCategory
+                    matchesCategory && !isPromoExpired(it.endDate)
                 }
             }
 
@@ -803,12 +803,14 @@ fun PremiumPromotionsScreen(
                         }
                     } else {
                         items(filteredPromos) { item ->
+                            val lastDay = isPromoLastDay(item.endDate)
                             promoCardRowItem(
                                 category = item.category,
                                 title = item.title,
                                 place = item.stationName,
                                 valuePrice = item.value,
                                 distance = item.distanceKm,
+                                isLastDay = lastDay,
                                 onAction = { Toast.makeText(context, "Cupom para ${item.title} resgatado com sucesso!", Toast.LENGTH_SHORT).show() }
                             )
                         }
@@ -826,6 +828,7 @@ fun promoCardRowItem(
     place: String,
     valuePrice: String,
     distance: String,
+    isLastDay: Boolean = false,
     onAction: () -> Unit
 ) {
     Card(
@@ -864,7 +867,34 @@ fun promoCardRowItem(
                     Text(distance, fontSize = 10.sp, color = Color.Gray)
                 }
 
-                Text(title, fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color.Black, modifier = Modifier.padding(top = 2.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth().padding(top = 2.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = Color.Black,
+                        modifier = Modifier.weight(1f)
+                    )
+                    if (isLastDay) {
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF9D2C6A), RoundedCornerShape(12.dp))
+                                .padding(horizontal = 8.dp, vertical = 2.dp)
+                        ) {
+                            Text(
+                                text = "ÚLTIMO DIA",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White
+                            )
+                        }
+                    }
+                }
                 Text(place, fontSize = 11.sp, color = Color.Gray)
 
                 Row(

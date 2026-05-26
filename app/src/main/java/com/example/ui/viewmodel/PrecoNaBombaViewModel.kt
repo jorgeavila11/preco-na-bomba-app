@@ -580,6 +580,19 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                 _promoList.value = mappedPromos
             }
         }
+        fetchRefuelings()
+    }
+
+    fun fetchRefuelings() {
+        FirebaseManager.fetchAllRefuelingsFromFirestore { cloudRefuelings ->
+            if (cloudRefuelings.isNotEmpty()) {
+                viewModelScope.launch {
+                    for (refueling in cloudRefuelings) {
+                        repository.insertRefuelingLocally(refueling)
+                    }
+                }
+            }
+        }
     }
 
     init {
