@@ -966,7 +966,7 @@ fun StationCardItem(
             }
 
             // Compact Promotions Indicator inside the card (low-profile design)
-            if (promotions.isNotEmpty()) {
+            if (isPremium && promotions.isNotEmpty()) {
                 Spacer(modifier = Modifier.height(4.dp))
                 HorizontalDivider(color = BorderSlate100, thickness = 0.5.dp)
                 Spacer(modifier = Modifier.height(4.dp))
