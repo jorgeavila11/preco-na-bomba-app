@@ -1060,43 +1060,11 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                             )
                         } else {
                             Text(
-                                text = "Entrar via Firebase (Online)",
+                                text = "Entrar",
                                 fontSize = 15.sp,
                                 fontWeight = FontWeight.Bold
                             )
                         }
-                    }
-
-                    // Simulated Demo Login Link
-                    TextButton(
-                        onClick = {
-                            val cleanCnpjInput = email.replace(Regex("[^0-9]"), "")
-                            if (email.contains("posto", ignoreCase = true) || email == "exemplo@posto.com.br") {
-                                viewModel.currentStationId.value = 5 // Defaults to pre-seeded Posto Estrela do Sul (ID 5)
-                                Toast.makeText(context, "Modo Demonstrativo: Logado como Posto Estrela!", Toast.LENGTH_SHORT).show()
-                                viewModel.navigateTo(Screen.MainStationHome)
-                            } else if (cleanCnpjInput.length >= 8) {
-                                viewModel.loginAsStation(cleanCnpjInput, password) { loggedIn ->
-                                    if (loggedIn) {
-                                        Toast.makeText(context, "Modo Demonstrativo: Logado no Posto cadastrado!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "CNPJ não encontrado. Logado como Motorista.", Toast.LENGTH_SHORT).show()
-                                        viewModel.navigateTo(Screen.MainDriverHome)
-                                    }
-                                }
-                            } else {
-                                Toast.makeText(context, "Entrando como Motorista...", Toast.LENGTH_SHORT).show()
-                                viewModel.navigateTo(Screen.MainDriverHome)
-                            }
-                        },
-                        modifier = Modifier.align(Alignment.CenterHorizontally)
-                    ) {
-                        Text(
-                            text = "Entrar em Modo Demo (Offline)",
-                            color = Color(0xFF00327D),
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp
-                        )
                     }
 
                     // OR DIVIDER

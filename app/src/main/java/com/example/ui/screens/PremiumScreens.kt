@@ -584,6 +584,9 @@ fun PremiumPromotionsScreen(
     val activePromoFilter by viewModel.selectedPromoFilter.collectAsState()
     val context = LocalContext.current
 
+    val profileState by viewModel.profile.collectAsState()
+    val isPremium = profileState?.isPremium ?: false
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -598,10 +601,18 @@ fun PremiumPromotionsScreen(
                     Box(
                         modifier = Modifier
                             .padding(end = 12.dp)
-                            .background(MaterialTheme.colorScheme.secondaryContainer, RoundedCornerShape(6.dp))
+                            .background(
+                                if (isPremium) Color(0xFF9D2C6A) else MaterialTheme.colorScheme.secondaryContainer,
+                                RoundedCornerShape(6.dp)
+                            )
                             .padding(horizontal = 8.dp, vertical = 4.dp)
                     ) {
-                        Text("PRO", fontSize = 10.sp, fontWeight = FontWeight.Black, color = AlertOnYellow)
+                        Text(
+                            text = if (isPremium) "PREMIUM" else "PRO",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Black,
+                            color = if (isPremium) Color.White else AlertOnYellow
+                        )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -614,8 +625,6 @@ fun PremiumPromotionsScreen(
         },
         modifier = Modifier.testTag("premium_promotions_screen")
     ) { innerPadding ->
-        val profileState by viewModel.profile.collectAsState()
-        val isPremium = profileState?.isPremium ?: false
 
         if (!isPremium) {
             Box(

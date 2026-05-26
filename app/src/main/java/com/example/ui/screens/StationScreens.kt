@@ -275,6 +275,33 @@ fun MainStationHome(
                     }
                 }
                 Spacer(modifier = Modifier.height(12.dp))
+            } else if (planState == "Conta Premium") {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 20.dp),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                    border = BorderStroke(1.5.dp, Color(0xFF22C55E))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF22C55E), CircleShape)
+                                .padding(8.dp)
+                        ) {
+                            Icon(Icons.Default.Check, "Ativo", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Conta Parceiro/Premium Ativa ✨", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF15803D))
+                            Text("Você está com acesso total! Seu posto possui destaque e selação de destaque aos motoristas.", fontSize = 11.sp, color = Color(0xFF166534))
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
             }
 
             // Price updates module with active form inputs
@@ -559,26 +586,30 @@ fun MainStationHome(
                                     verticalAlignment = Alignment.CenterVertically,
                                     horizontalArrangement = Arrangement.SpaceBetween
                                 ) {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(6.dp),
-                                        modifier = Modifier.weight(1f, fill = false)
+                                    Column(
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
-                                        Icon(
-                                            imageVector = Icons.Default.DateRange,
-                                            contentDescription = null,
-                                            tint = Color(0xFF64748B),
-                                            modifier = Modifier.size(14.dp)
-                                        )
-                                        Text(
-                                            text = if (displayStart.isNotEmpty() && displayEnd.isNotEmpty()) {
-                                                "$displayStart até $displayEnd"
-                                            } else {
-                                                "Período indeterminado"
-                                            },
-                                            fontSize = 12.sp,
-                                            color = Color(0xFF64748B)
-                                        )
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DateRange,
+                                                contentDescription = null,
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                text = if (displayStart.isNotEmpty() && displayEnd.isNotEmpty()) {
+                                                    "$displayStart até $displayEnd"
+                                                } else {
+                                                    "Período indeterminado"
+                                                },
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
                                         if (expired) {
                                             Box(
                                                 modifier = Modifier
