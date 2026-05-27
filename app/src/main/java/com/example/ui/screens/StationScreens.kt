@@ -1068,11 +1068,29 @@ fun StationProfileArea(
 ) {
     val cnpj by viewModel.editStationCNPJ.collectAsState()
     val razao by viewModel.editStationRazao.collectAsState()
+    val stationName by viewModel.editStationName.collectAsState()
     val address by viewModel.editStationAddress.collectAsState()
     val brand by viewModel.editStationBrand.collectAsState()
     val phone by viewModel.editStationPhone.collectAsState()
     val email by viewModel.editStationEmail.collectAsState()
     val context = LocalContext.current
+
+    val isUid = razao.length >= 20 && !razao.contains(" ") && !razao.contains("-") && !razao.contains(".")
+    val cleanRazao = if (razao.isBlank() || isUid) {
+        if (stationName.isNotEmpty()) {
+            if (stationName.uppercase().endsWith("LTDA")) {
+                stationName
+            } else {
+                "$stationName Ltda"
+            }
+        } else if (email.isNotEmpty()) {
+            email.substringBefore("@").replaceFirstChar { it.uppercase() } + " Ltda"
+        } else {
+            "Comércio de Combustíveis Ltda"
+        }
+    } else {
+        razao
+    }
 
     Scaffold(
         topBar = {
@@ -1120,7 +1138,7 @@ fun StationProfileArea(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text("Razão Social", fontSize = 10.sp, color = Color.Gray)
-                            Text(razao, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                            Text(cleanRazao, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color.Black)
                         }
                     }
 

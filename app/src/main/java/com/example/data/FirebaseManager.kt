@@ -151,7 +151,8 @@ object FirebaseManager {
                         cnpj = cnpj,
                         email = email,
                         phone = phone,
-                        razaoSocial = if (razaoSocial.isNotEmpty()) razaoSocial else uid
+                        razaoSocial = razaoSocial,
+                        firestoreOwnerUid = uid
                     )
                     onResult(station)
                 } else {
@@ -397,13 +398,13 @@ object FirebaseManager {
         val currentUid = authInstance?.currentUser?.uid ?: ""
         val currentUserEmail = authInstance?.currentUser?.email ?: ""
 
-        val isValidTargetUid = !station.razaoSocial.isNullOrBlank() && 
-                !station.razaoSocial.contains(" ") && 
-                station.razaoSocial.length >= 10
+        val isValidTargetUid = !station.firestoreOwnerUid.isNullOrBlank() && 
+                !station.firestoreOwnerUid!!.contains(" ") && 
+                station.firestoreOwnerUid!!.length >= 10
 
         // Determine if this station belongs directly to the logged-in station owner
         val isMyStation = currentUid.isNotEmpty() && (
-            (isValidTargetUid && station.razaoSocial == currentUid) ||
+            (isValidTargetUid && station.firestoreOwnerUid == currentUid) ||
             (!station.email.isNullOrBlank() && station.email.trim().lowercase() == currentUserEmail.trim().lowercase())
         )
 
@@ -415,7 +416,7 @@ object FirebaseManager {
             val targetUid = if (isMyStation) {
                 currentUid
             } else if (isValidTargetUid) {
-                station.razaoSocial!!
+                station.firestoreOwnerUid!!
             } else {
                 station.email ?: ""
             }
@@ -441,7 +442,7 @@ object FirebaseManager {
                     "cnpj" to (station.cnpj ?: ""),
                     "email" to (station.email ?: ""),
                     "phone" to (station.phone ?: ""),
-                    "razaoSocial" to (if (isValidTargetUid) station.razaoSocial!! else station.razaoSocial ?: ""),
+                    "razaoSocial" to (station.razaoSocial ?: ""),
                     "isPremium" to true
                 )
 
@@ -477,7 +478,7 @@ object FirebaseManager {
                 "cnpj" to (station.cnpj ?: ""),
                 "email" to (station.email ?: ""),
                 "phone" to (station.phone ?: ""),
-                "razaoSocial" to (if (isValidTargetUid) "" else station.razaoSocial ?: ""),
+                "razaoSocial" to (station.razaoSocial ?: ""),
                 "ownerUid" to (if (isMyStation) currentUid else "")
             )
 
@@ -588,7 +589,8 @@ object FirebaseManager {
                         cnpj = cnpj,
                         email = email,
                         phone = phone,
-                        razaoSocial = uid // Map the Firestore owner UID to razaoSocial so we can match it back with promotions!
+                        razaoSocial = razaoSocial,
+                        firestoreOwnerUid = uid
                     )
                     list.add(station)
                 }

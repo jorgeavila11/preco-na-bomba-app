@@ -536,6 +536,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
 
                 val mappedPromos = cloudPromos.map { promo ->
                     val matchedStation = stationsList.find {
+                        val matchesOwnerUid = !it.firestoreOwnerUid.isNullOrBlank() && (it.firestoreOwnerUid == promo.firestoreStationId)
                         val matchesRazao = !it.razaoSocial.isNullOrBlank() && (it.razaoSocial == promo.firestoreStationId)
                         val matchesEmail = !it.email.isNullOrBlank() && (it.email?.lowercase() == promo.firestoreStationId?.lowercase())
                         val matchesCnpj = !it.cnpj.isNullOrBlank() && (it.cnpj == promo.firestoreStationId)
@@ -554,7 +555,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                         val matchesFuzzyName = pStationId.isNotEmpty() && (sName.contains(pStationId) || pStationId.contains(sName))
                         val matchesFuzzyStationName = sName.contains(pStationName) || pStationName.contains(sName)
                         
-                        matchesRazao || matchesEmail || matchesCnpj || cohabMatch || matchesFuzzyName || matchesFuzzyStationName
+                        matchesOwnerUid || matchesRazao || matchesEmail || matchesCnpj || cohabMatch || matchesFuzzyName || matchesFuzzyStationName
                     }
                     val isOwnerMatch = (!currentUid.isNullOrBlank() && promo.firestoreStationId == currentUid) ||
                         (!currentUserEmail.isNullOrBlank() && promo.firestoreStationId?.lowercase() == currentUserEmail.lowercase()) ||
@@ -726,7 +727,8 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                         cnpj = cleanCnpj,
                         email = emailAddress.trim().lowercase(),
                         phone = phoneNumber,
-                        razaoSocial = razaoSocialStr
+                        razaoSocial = razaoSocialStr,
+                        firestoreOwnerUid = com.example.data.FirebaseManager.getCurrentUserUid()
                     )
 
                     repository.insertStation(newStation)
@@ -855,7 +857,8 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                                     cnpj = "00.000.000/0001-00",
                                                     email = email,
                                                     phone = "(11) 98765-4321",
-                                                    razaoSocial = uid
+                                                    razaoSocial = email.substringBefore("@").replaceFirstChar { it.uppercase() } + " Ltda",
+                                                    firestoreOwnerUid = uid
                                                 )
                                                 repository.insertStation(defaultStation)
                                                 val savedStation = repository.getStationByEmail(email)
@@ -906,7 +909,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                                     cnpj = "00.000.000/0001-00",
                                     email = email,
                                     phone = "(11) 98765-4321",
-                                    razaoSocial = ""
+                                    razaoSocial = email.substringBefore("@").replaceFirstChar { it.uppercase() } + " Ltda"
                                 )
                                 repository.insertStation(defaultStation)
                                 val savedStation = repository.getStationByEmail(email)

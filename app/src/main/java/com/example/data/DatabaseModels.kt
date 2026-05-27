@@ -32,7 +32,8 @@ data class FuelStation(
     val cnpj: String? = null,
     val email: String? = null,
     val phone: String? = null,
-    val razaoSocial: String? = null
+    val razaoSocial: String? = null,
+    val firestoreOwnerUid: String? = null
 )
 
 // 2. Refueling Log Entity - History of fuelings logged by the driver
