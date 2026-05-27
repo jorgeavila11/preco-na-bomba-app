@@ -1325,13 +1325,24 @@ fun formatBraDate(rawDate: String?): String {
 fun isPromoExpired(rawEndDate: String?): Boolean {
     if (rawEndDate.isNullOrEmpty()) return false
     return try {
-        val end = if (rawEndDate.contains("/")) {
-            java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).parse(rawEndDate)
+        val tz = java.util.TimeZone.getDefault()
+        val parser = if (rawEndDate.contains("/")) {
+            java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
         } else {
-            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(rawEndDate)
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        }.apply {
+            timeZone = tz
         }
-        val today = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse("2026-05-25")
-        end != null && end.before(today)
+        val end = parser.parse(rawEndDate) ?: return false
+        
+        val today = java.util.Calendar.getInstance(tz).apply {
+            set(java.util.Calendar.HOUR_OF_DAY, 0)
+            set(java.util.Calendar.MINUTE, 0)
+            set(java.util.Calendar.SECOND, 0)
+            set(java.util.Calendar.MILLISECOND, 0)
+        }.time
+        
+        end.before(today)
     } catch (e: Exception) {
         false
     }
@@ -1340,13 +1351,17 @@ fun isPromoExpired(rawEndDate: String?): Boolean {
 fun isPromoLastDay(rawEndDate: String?): Boolean {
     if (rawEndDate.isNullOrEmpty()) return false
     return try {
-        val end = if (rawEndDate.contains("/")) {
-            java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US).parse(rawEndDate)
+        val tz = java.util.TimeZone.getDefault()
+        val parser = if (rawEndDate.contains("/")) {
+            java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
         } else {
-            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse(rawEndDate)
-        } ?: return false
+            java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        }.apply {
+            timeZone = tz
+        }
+        val end = parser.parse(rawEndDate) ?: return false
         
-        val endCal = java.util.Calendar.getInstance().apply {
+        val endCal = java.util.Calendar.getInstance(tz).apply {
             time = end
             set(java.util.Calendar.HOUR_OF_DAY, 0)
             set(java.util.Calendar.MINUTE, 0)
@@ -1354,7 +1369,7 @@ fun isPromoLastDay(rawEndDate: String?): Boolean {
             set(java.util.Calendar.MILLISECOND, 0)
         }
         
-        val todayCal = java.util.Calendar.getInstance().apply {
+        val todayCal = java.util.Calendar.getInstance(tz).apply {
             set(java.util.Calendar.HOUR_OF_DAY, 0)
             set(java.util.Calendar.MINUTE, 0)
             set(java.util.Calendar.SECOND, 0)
@@ -1363,20 +1378,8 @@ fun isPromoLastDay(rawEndDate: String?): Boolean {
         
         val diffMs = endCal.timeInMillis - todayCal.timeInMillis
         val diffDays = diffMs / (1000 * 60 * 60 * 24)
-        if (diffDays == 0L || diffDays == 1L) return true
         
-        val fallbackToday = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US).parse("2026-05-25")!!
-        val fallbackCal = java.util.Calendar.getInstance().apply {
-            time = fallbackToday
-            set(java.util.Calendar.HOUR_OF_DAY, 0)
-            set(java.util.Calendar.MINUTE, 0)
-            set(java.util.Calendar.SECOND, 0)
-            set(java.util.Calendar.MILLISECOND, 0)
-        }
-        val diffFallbackMs = endCal.timeInMillis - fallbackCal.timeInMillis
-        val diffFallbackDays = diffFallbackMs / (1000 * 60 * 60 * 24)
-        
-        diffFallbackDays == 0L || diffFallbackDays == 1L
+        diffDays == 0L || diffDays == 1L
     } catch (e: Exception) {
         false
     }
