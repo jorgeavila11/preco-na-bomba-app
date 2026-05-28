@@ -31,6 +31,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.gestures.*
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.TransformOrigin
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.nativeCanvas
 import com.example.data.*
 import com.example.ui.viewmodel.PromoItem
 import com.example.ui.theme.*
@@ -1025,6 +1034,64 @@ fun StationCardItem(
 }
 
 
+@Composable
+fun StationBannerImage(station: FuelStation) {
+    val brandBorder = when {
+        station.brand.contains("shell", ignoreCase = true) || station.name.contains("shell", ignoreCase = true) -> Color(0xFFFDE047)
+        station.brand.contains("ipiranga", ignoreCase = true) || station.name.contains("ipiranga", ignoreCase = true) -> Color(0xFFF97316)
+        station.brand.contains("petrobras", ignoreCase = true) || station.name.contains("petrobras", ignoreCase = true) -> Color(0xFF047857)
+        else -> Color(0xFFCBD5E1)
+    }
+    val brandImageText = when {
+        station.brand.contains("shell", ignoreCase = true) || station.name.contains("shell", ignoreCase = true) -> "🐚 Posto Shell"
+        station.brand.contains("ipiranga", ignoreCase = true) || station.name.contains("ipiranga", ignoreCase = true) -> "🧡 Posto Ipiranga"
+        station.brand.contains("petrobras", ignoreCase = true) || station.name.contains("petrobras", ignoreCase = true) -> "🟢 Posto Petrobras (BR)"
+        else -> "⛽ Posto Bandeira Branca"
+    }
+    val bgGradient = when {
+        station.brand.contains("shell", ignoreCase = true) || station.name.contains("shell", ignoreCase = true) -> 
+            Brush.linearGradient(listOf(Color(0xFFFEF08A), Color(0xFFFACC15)))
+        station.brand.contains("ipiranga", ignoreCase = true) || station.name.contains("ipiranga", ignoreCase = true) -> 
+            Brush.linearGradient(listOf(Color(0xFFFED7AA), Color(0xFFFB923C)))
+        station.brand.contains("petrobras", ignoreCase = true) || station.name.contains("petrobras", ignoreCase = true) -> 
+            Brush.linearGradient(listOf(Color(0xFFA7F3D0), Color(0xFF34D399)))
+        else -> 
+            Brush.linearGradient(listOf(Color(0xFFE2E8F0), Color(0xFF94A3B8)))
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(110.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(bgGradient)
+            .border(1.dp, brandBorder, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            Icon(
+                imageVector = Icons.Default.LocationOn,
+                contentDescription = null,
+                tint = Color.White.copy(alpha = 0.8f),
+                modifier = Modifier.size(36.dp)
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = brandImageText,
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+            Text(
+                text = "Simulação de Posto de Combustível",
+                fontSize = 10.sp,
+                color = Color.White.copy(alpha = 0.9f)
+            )
+        }
+    }
+}
+
+
 // 2. Explorable Dynamic Map screen
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -1038,6 +1105,57 @@ fun DriverMap(
     val averageConsumption = profileState?.averageConsumption ?: 12.0
     val activeFilter by viewModel.selectedFuelFilter.collectAsState()
     val context = LocalContext.current
+
+    val userLocation by viewModel.userLocation.collectAsState()
+    var filterNearbyOnly by remember { mutableStateOf(true) }
+    var zoomScale by remember { mutableStateOf(1f) }
+    var mapOffset by remember { mutableStateOf(Offset.Zero) }
+    var isStationSelectedByClick by remember { mutableStateOf(false) }
+    var isMinimized by remember { mutableStateOf(false) }
+
+    LaunchedEffect(selectedId) {
+        isMinimized = false
+    }
+
+    val gpsPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestMultiplePermissions()
+    ) { permissions ->
+        val fineGranted = permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false
+        val coarseGranted = permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false
+        if (fineGranted || coarseGranted) {
+            requestSystemLocation(context, viewModel)
+        } else {
+            Toast.makeText(context, "Permissão de GPS negada. Usando localização simulada.", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (fineGranted || coarseGranted) {
+            requestSystemLocation(context, viewModel)
+        } else {
+            gpsPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    val stationsToShow = remember(stations, filterNearbyOnly) {
+        if (filterNearbyOnly) {
+            val nearby = stations.filter { it.distanceKm <= 15.0 }
+            if (nearby.isNotEmpty()) {
+                nearby.sortedBy { it.distanceKm }
+            } else {
+                stations.sortedBy { it.distanceKm }.take(3)
+            }
+        } else {
+            stations
+        }
+    }
 
     var isPriceUpdateDialogOpen by remember { mutableStateOf(false) }
     var localStationToUpdate by remember { mutableStateOf<com.example.data.FuelStation?>(null) }
@@ -1095,254 +1213,315 @@ fun DriverMap(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(horizontal = 16.dp, vertical = 8.dp)
-                                .testTag("map_station_details_sheet"),
+                                .testTag("map_station_details_sheet")
+                                .draggable(
+                                    orientation = Orientation.Vertical,
+                                    state = rememberDraggableState { delta ->
+                                        if (delta > 8f) {
+                                            isMinimized = true
+                                        } else if (delta < -8f) {
+                                            isMinimized = false
+                                        }
+                                    }
+                                )
+                                .clickable(enabled = isMinimized) {
+                                    isMinimized = false
+                                },
                             shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp, bottomStart = 16.dp, bottomEnd = 16.dp),
                             elevation = CardDefaults.cardElevation(defaultElevation = 8.dp),
                             colors = CardDefaults.cardColors(containerColor = Color.White)
                         ) {
-                            Column(modifier = Modifier.padding(20.dp)) {
+                            Column(
+                                modifier = Modifier
+                                    .animateContentSize()
+                                    .padding(horizontal = 20.dp, vertical = if (isMinimized) 12.dp else 20.dp)
+                            ) {
+                                // Drag handle
                                 Box(
                                     modifier = Modifier
                                         .width(40.dp)
                                         .height(4.dp)
                                         .background(Color(0xFFE2E8F0), CircleShape)
                                         .align(Alignment.CenterHorizontally)
-                                        .padding(bottom = 12.dp)
                                 )
 
-                                Row(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 10.dp),
-                                    horizontalArrangement = Arrangement.SpaceBetween,
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = station.name,
-                                            fontSize = 20.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color.Black
-                                        )
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            modifier = Modifier.padding(top = 4.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.LocationOn,
-                                                contentDescription = null,
-                                                tint = Color.Gray,
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Spacer(modifier = Modifier.width(4.dp))
-                                            Text(
-                                                text = station.address,
-                                                fontSize = 12.sp,
-                                                color = Color.Gray,
-                                                maxLines = 1,
-                                                overflow = TextOverflow.Ellipsis
-                                            )
-                                        }
-                                    }
-                                    Box(
-                                        modifier = Modifier
-                                            .background(Color(0xFFE8F5E9), RoundedCornerShape(6.dp))
-                                            .padding(horizontal = 8.dp, vertical = 4.dp)
-                                    ) {
-                                        Text(
-                                            text = "ABERTO",
-                                            fontSize = 10.sp,
-                                            fontWeight = FontWeight.Bold,
-                                            color = Color(0xFF2E7D32)
-                                        )
-                                    }
-                                }
+                                Spacer(modifier = Modifier.height(10.dp))
 
-                                Spacer(modifier = Modifier.height(16.dp))
-
-                                // Fast Prices Row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(16.dp)
-                                ) {
-                                    Card(
-                                        modifier = Modifier.weight(1f),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
-                                            Column {
-                                                Text("Gasolina Comum", fontSize = 10.sp, color = Color.Gray)
-                                                Text(
-                                                    text = if (station.priceGasoline <= 0.0) "Não informado" else String.format("R$ %.2f", station.priceGasoline),
-                                                    fontSize = if (station.priceGasoline <= 0.0) 12.sp else 16.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.Black
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Card(
-                                        modifier = Modifier.weight(1f),
-                                        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.padding(12.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                                        ) {
-                                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.secondary)
-                                            Column {
-                                                Text("Etanol", fontSize = 10.sp, color = Color.Gray)
-                                                Text(
-                                                    text = if (station.priceEthanol <= 0.0) "Não informado" else String.format("R$ %.2f", station.priceEthanol),
-                                                    fontSize = if (station.priceEthanol <= 0.0) 12.sp else 16.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color.Black
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-
-                                // Premium Travel Cost Estimation (Rule 2)
-                                Spacer(modifier = Modifier.height(12.dp))
-                                if (isPremium) {
-                                    val activePrice = when (activeFilter) {
-                                         "Etanol" -> station.priceEthanol
-                                         "Diesel" -> station.priceDiesel
-                                         else -> station.priceGasoline
-                                     }
-                                     val estCost = (station.distanceKm / averageConsumption) * activePrice
+                                if (isMinimized) {
                                     Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Text(
+                                                    text = station.name,
+                                                    fontSize = 16.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.Black,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                                if (station.isPartner) {
+                                                    Spacer(modifier = Modifier.width(4.dp))
+                                                    Icon(
+                                                        imageVector = Icons.Default.Star,
+                                                        contentDescription = "Parceiro",
+                                                        tint = Color(0xFFF59E0B),
+                                                        modifier = Modifier.size(14.dp)
+                                                    )
+                                                }
+                                            }
+                                            Text(
+                                                text = "Toque ou deslize para cima para ver preços e rota",
+                                                fontSize = 11.sp,
+                                                color = MaterialTheme.colorScheme.primary,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                        }
+                                        Icon(
+                                            imageVector = Icons.Default.KeyboardArrowUp,
+                                            contentDescription = "Maximizar",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(28.dp)
+                                        )
+                                    }
+                                } else {
+                                    Row(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
-                                            .padding(12.dp)
+                                            .padding(top = 10.dp),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.Top
                                     ) {
-                                        Icon(Icons.Default.LocationOn, null, tint = Color(0xFF2E7D32))
-                                        Column {
-                                            Text("CUSTO ESTIMADO DE COMBUSTÍVEL", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                        Column(modifier = Modifier.weight(1f)) {
                                             Text(
-                                                text = String.format("Gasto de R$ %.2f • Distância: %.1f km até o posto", estCost, station.distanceKm),
-                                                fontSize = 13.sp,
+                                                text = station.name,
+                                                fontSize = 20.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = Color.Black
+                                            )
+                                            Row(
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                modifier = Modifier.padding(top = 4.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.LocationOn,
+                                                    contentDescription = null,
+                                                    tint = Color.Gray,
+                                                    modifier = Modifier.size(14.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    text = station.address,
+                                                    fontSize = 12.sp,
+                                                    color = Color.Gray,
+                                                    maxLines = 1,
+                                                    overflow = TextOverflow.Ellipsis
+                                                )
+                                            }
+                                        }
+                                        Box(
+                                            modifier = Modifier
+                                                .background(Color(0xFFE8F5E9), RoundedCornerShape(6.dp))
+                                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                                        ) {
+                                            Text(
+                                                text = "ABERTO",
+                                                fontSize = 10.sp,
                                                 fontWeight = FontWeight.Bold,
                                                 color = Color(0xFF2E7D32)
                                             )
                                         }
                                     }
-                                } else {
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .background(Color(0xFFFFF3E0), RoundedCornerShape(8.dp))
-                                            .clickable {
-                                                Toast.makeText(context, "Upgrade para Premium para ter acesso automático às estimativas de custo!", Toast.LENGTH_LONG).show()
-                                                viewModel.navigateTo(Screen.PremiumDetails)
-                                            }
-                                            .padding(12.dp)
-                                    ) {
-                                        Icon(Icons.Default.Lock, null, tint = Color(0xFFE65100))
-                                        Column {
-                                            Text("CUSTO DE VIAGEM ATÉ O POSTO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
-                                            Text(
-                                                text = "🔒 Calcular custo de viagem (Recurso Premium)",
-                                                fontSize = 12.sp,
-                                                fontWeight = FontWeight.Bold,
-                                                color = Color(0xFFE65100)
-                                            )
-                                        }
-                                    }
-                                }
 
-                                if (station.priceGasoline <= 0.0 || station.priceEthanol <= 0.0) {
-                                    Spacer(modifier = Modifier.height(12.dp))
-                                    Card(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .border(1.dp, Color(0xFFFDE047), RoundedCornerShape(12.dp)),
-                                        colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
-                                        shape = RoundedCornerShape(12.dp)
+                                    Spacer(modifier = Modifier.height(16.dp))
+
+                                    // Fast Prices Row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(16.dp)
                                     ) {
-                                        Column(
-                                            modifier = Modifier.padding(14.dp),
-                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        Card(
+                                            modifier = Modifier.weight(1f),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
                                         ) {
                                             Row(
+                                                modifier = Modifier.padding(12.dp),
                                                 verticalAlignment = Alignment.CenterVertically,
                                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Info,
-                                                    contentDescription = null,
-                                                    tint = Color(0xFFD97706)
-                                                )
+                                                Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
+                                                Column {
+                                                    Text("Gasolina Comum", fontSize = 10.sp, color = Color.Gray)
+                                                    Text(
+                                                        text = if (station.priceGasoline <= 0.0) "Não informado" else String.format("R$ %.2f", station.priceGasoline),
+                                                        fontSize = if (station.priceGasoline <= 0.0) 12.sp else 16.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.Black
+                                                    )
+                                                }
+                                            }
+                                        }
+
+                                        Card(
+                                            modifier = Modifier.weight(1f),
+                                            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.background)
+                                        ) {
+                                            Row(
+                                                modifier = Modifier.padding(12.dp),
+                                                verticalAlignment = Alignment.CenterVertically,
+                                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                            ) {
+                                                Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.secondary)
+                                                Column {
+                                                    Text("Etanol", fontSize = 10.sp, color = Color.Gray)
+                                                    Text(
+                                                        text = if (station.priceEthanol <= 0.0) "Não informado" else String.format("R$ %.2f", station.priceEthanol),
+                                                        fontSize = if (station.priceEthanol <= 0.0) 12.sp else 16.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color.Black
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+
+                                    // Premium Travel Cost Estimation (Rule 2)
+                                    Spacer(modifier = Modifier.height(12.dp))
+                                    if (isPremium) {
+                                        val activePrice = when (activeFilter) {
+                                             "Etanol" -> station.priceEthanol
+                                             "Diesel" -> station.priceDiesel
+                                             else -> station.priceGasoline
+                                         }
+                                         val estCost = (station.distanceKm / averageConsumption) * activePrice
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Color(0xFFE8F5E9), RoundedCornerShape(8.dp))
+                                                .padding(12.dp)
+                                        ) {
+                                            Icon(Icons.Default.LocationOn, null, tint = Color(0xFF2E7D32))
+                                            Column {
+                                                Text("CUSTO ESTIMADO DE COMBUSTÍVEL", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
                                                 Text(
-                                                    text = "Vimos que este posto existe, você sabe o preço do combustível lá?",
+                                                    text = String.format("Gasto de R$ %.2f • Distância: %.1f km até o posto", estCost, station.distanceKm),
+                                                    fontSize = 13.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF2E7D32)
+                                                )
+                                            }
+                                        }
+                                    } else {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .background(Color(0xFFFFF3E0), RoundedCornerShape(8.dp))
+                                                .clickable {
+                                                    Toast.makeText(context, "Upgrade para Premium para ter acesso automático às estimativas de custo!", Toast.LENGTH_LONG).show()
+                                                    viewModel.navigateTo(Screen.PremiumDetails)
+                                                }
+                                                .padding(12.dp)
+                                        ) {
+                                            Icon(Icons.Default.Lock, null, tint = Color(0xFFE65100))
+                                            Column {
+                                                Text("CUSTO DE VIAGEM ATÉ O POSTO", fontSize = 9.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                                Text(
+                                                    text = "🔒 Calcular custo de viagem (Recurso Premium)",
                                                     fontSize = 12.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF92400E)
+                                                    color = Color(0xFFE65100)
                                                 )
                                             }
-                                            Button(
-                                                onClick = {
-                                                    localStationToUpdate = station
-                                                    isPriceUpdateDialogOpen = true
-                                                },
-                                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
-                                                modifier = Modifier.fillMaxWidth().height(36.dp),
-                                                shape = RoundedCornerShape(8.dp)
+                                        }
+                                    }
+
+                                    if (station.priceGasoline <= 0.0 || station.priceEthanol <= 0.0) {
+                                        Spacer(modifier = Modifier.height(12.dp))
+                                        Card(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .border(1.dp, Color(0xFFFDE047), RoundedCornerShape(12.dp)),
+                                            colors = CardDefaults.cardColors(containerColor = Color(0xFFFFFBEB)),
+                                            shape = RoundedCornerShape(12.dp)
+                                        ) {
+                                            Column(
+                                                modifier = Modifier.padding(14.dp),
+                                                verticalArrangement = Arrangement.spacedBy(8.dp)
                                             ) {
-                                                Text("Preencher Preço", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                Row(
+                                                    verticalAlignment = Alignment.CenterVertically,
+                                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                                ) {
+                                                    Icon(
+                                                        imageVector = Icons.Default.Info,
+                                                        contentDescription = null,
+                                                        tint = Color(0xFFD97706)
+                                                    )
+                                                    Text(
+                                                        text = "Vimos que este posto existe, você sabe o preço do combustível lá?",
+                                                        fontSize = 12.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFF92400E)
+                                                    )
+                                                }
+                                                Button(
+                                                    onClick = {
+                                                        localStationToUpdate = station
+                                                        isPriceUpdateDialogOpen = true
+                                                    },
+                                                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFD97706)),
+                                                    modifier = Modifier.fillMaxWidth().height(36.dp),
+                                                    shape = RoundedCornerShape(8.dp)
+                                                ) {
+                                                    Text("Preencher Preço", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                                                }
                                             }
                                         }
                                     }
-                                }
 
-                                Spacer(modifier = Modifier.height(20.dp))
+                                    Spacer(modifier = Modifier.height(20.dp))
 
-                                // Nav actions row
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    horizontalArrangement = Arrangement.spacedBy(12.dp)
-                                ) {
-                                    Button(
-                                        onClick = {
-                                            Toast.makeText(context, "Calculando melhor trajeto com GPS no Google Maps!", Toast.LENGTH_LONG).show()
-                                        },
-                                        modifier = Modifier
-                                            .weight(1f)
-                                            .height(52.dp),
-                                        shape = RoundedCornerShape(12.dp),
-                                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                    // Nav actions row
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Icon(Icons.Default.LocationOn, null, tint = Color.White)
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Text("Como Chegar", fontWeight = FontWeight.Bold, color = Color.White)
+                                        Button(
+                                            onClick = {
+                                                Toast.makeText(context, "Calculando melhor trajeto com GPS no Google Maps!", Toast.LENGTH_LONG).show()
+                                            },
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(52.dp),
+                                            shape = RoundedCornerShape(12.dp),
+                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                        ) {
+                                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                                Icon(Icons.Default.LocationOn, null, tint = Color.White)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text("Como Chegar", fontWeight = FontWeight.Bold, color = Color.White)
+                                            }
                                         }
-                                    }
 
-                                    IconButton(
-                                        onClick = { viewModel.toggleFavorite(station.id) },
-                                        modifier = Modifier
-                                            .size(52.dp)
-                                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.Favorite,
-                                            contentDescription = "Favoritar",
-                                            tint = if (station.isFavorite) Color.Red else Color.Gray
-                                        )
+                                        IconButton(
+                                            onClick = { viewModel.toggleFavorite(station.id) },
+                                            modifier = Modifier
+                                                .size(52.dp)
+                                                .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(12.dp))
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Favorite,
+                                                contentDescription = "Favoritar",
+                                                tint = if (station.isFavorite) Color.Red else Color.Gray
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -1364,100 +1543,488 @@ fun DriverMap(
                 .padding(innerPadding)
                 .background(Color(0xFFE2E8F0)) // Light background grid
         ) {
-            // Draw city grid layout canvas
-            Canvas(modifier = Modifier.fillMaxSize()) {
-                val gridColor = Color(0xFFCBD5E1)
-                
-                // Draw horizontal streets
-                drawLine(gridColor, Offset(0f, size.height * 0.2f), Offset(size.width, size.height * 0.2f), strokeWidth = 12f)
-                drawLine(gridColor, Offset(0f, size.height * 0.5f), Offset(size.width, size.height * 0.5f), strokeWidth = 24f)
-                drawLine(gridColor, Offset(0f, size.height * 0.8f), Offset(size.width, size.height * 0.8f), strokeWidth = 16f)
-
-                // Draw vertical streets
-                drawLine(gridColor, Offset(size.width * 0.25f, 0f), Offset(size.width * 0.25f, size.height), strokeWidth = 14f)
-                drawLine(gridColor, Offset(size.width * 0.65f, 0f), Offset(size.width * 0.65f, size.height), strokeWidth = 18f)
-
-                // Draw river
-                val riverColor = Color(0xFFA5F3FC)
-                drawLine(riverColor, Offset(0f, size.height * 0.1f), Offset(size.width, size.height * 0.3f), strokeWidth = 40f)
-            }
-
-            // Interactive Pins mapped visually on top
-            val widthLimit = 320.dp
-            val heightLimit = 450.dp
-            stations.forEach { station ->
-                val xPercent = when (station.id % 3) {
-                    0 -> 0.2f
-                    1 -> 0.7f
-                    else -> 0.55f
-                }
-                val yPercent = when (station.id % 4) {
-                    0 -> 0.15f
-                    1 -> 0.45f
-                    2 -> 0.72f
-                    else -> 0.6f
-                }
-
-                val hasActiveMarkerSelected = station.id == selectedId
-
+            // ---- ZOOMABLE MAP LAYER ----
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(Unit) {
+                        detectTransformGestures { _, pan, zoom, _ ->
+                            zoomScale = (zoomScale * zoom).coerceIn(0.5f, 5.0f)
+                            mapOffset += pan * zoomScale
+                        }
+                    }
+            ) {
                 Box(
                     modifier = Modifier
-                        .align(Alignment.TopStart)
-                        .offset(
-                            x = (320 * xPercent).dp,
-                            y = (450 * yPercent).dp
+                        .fillMaxSize()
+                        .graphicsLayer(
+                            scaleX = zoomScale,
+                            scaleY = zoomScale,
+                            translationX = mapOffset.x,
+                            translationY = mapOffset.y
                         )
-                        .clickable { viewModel.selectStation(station.id) }
                 ) {
-                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        // Tag box showing live price
+                    // Draw city grid layout canvas
+                    Canvas(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) {
+                                // Clear selection indicators on canvas click
+                                isStationSelectedByClick = false
+                            }
+                    ) {
+                        // 1. Map Background (Light Beige)
+                        drawRect(color = Color(0xFFF2F0EA))
+
+                        // 2. Green Areas (Parks and Nature reserves)
+                        // Upper-left park (Renato Parente green zone)
+                        val parkRenatoParente = Path().apply {
+                            moveTo(0f, 0f)
+                            lineTo(size.width * 0.35f, 0f)
+                            quadraticTo(size.width * 0.25f, size.height * 0.18f, 0f, size.height * 0.22f)
+                            close()
+                        }
+                        drawPath(parkRenatoParente, color = Color(0xFFD6F3C7))
+
+                        // Upper-center park (Parque Silvana)
+                        val parkSilvana = Path().apply {
+                            moveTo(size.width * 0.45f, size.height * 0.15f)
+                            quadraticTo(size.width * 0.55f, size.height * 0.12f, size.width * 0.65f, size.height * 0.22f)
+                            quadraticTo(size.width * 0.58f, size.height * 0.30f, size.width * 0.48f, size.height * 0.27f)
+                            close()
+                        }
+                        drawPath(parkSilvana, color = Color(0xFFD6F3C7))
+
+                        // River marginal linear park (extends along the middle curve of the river)
+                        val riverMarginalPark = Path().apply {
+                            moveTo(size.width * 0.52f, size.height * 0.44f)
+                            quadraticTo(size.width * 0.61f, size.height * 0.33f, size.width * 0.72f, size.height * 0.23f)
+                            lineTo(size.width * 0.76f, size.height * 0.26f)
+                            quadraticTo(size.width * 0.65f, size.height * 0.36f, size.width * 0.56f, size.height * 0.47f)
+                            close()
+                        }
+                        drawPath(riverMarginalPark, color = Color(0xFFC7ECB8))
+
+                        // Park bottom-left (Ararinhas nature zone)
+                        val parkBottomLeft = Path().apply {
+                            moveTo(0f, size.height * 0.75f)
+                            quadraticTo(size.width * 0.18f, size.height * 0.80f, size.width * 0.12f, size.height * 0.95f)
+                            lineTo(0f, size.height * 0.98f)
+                            close()
+                        }
+                        drawPath(parkBottomLeft, color = Color(0xFFD6F3C7))
+
+                        // 3. Water Bodies (Rivers and Reservoirs)
+                        // Winding "Lagoa da Bastiana" (top left-center reservoir)
+                        val lagoaBastiana = Path().apply {
+                            moveTo(size.width * 0.26f, size.height * 0.14f)
+                            quadraticTo(size.width * 0.32f, size.height * 0.10f, size.width * 0.38f, size.height * 0.16f)
+                            quadraticTo(size.width * 0.34f, size.height * 0.22f, size.width * 0.28f, size.height * 0.18f)
+                            close()
+                        }
+                        drawPath(lagoaBastiana, color = Color(0xFFBADCEF))
+
+                        // "Rio Acaraú" - main wide winding river flowing from top-right to bottom-left
+                        val rioAcarau = Path().apply {
+                            moveTo(size.width * 0.88f, -20f)
+                            cubicTo(
+                                size.width * 0.76f, size.height * 0.18f,
+                                size.width * 0.64f, size.height * 0.34f,
+                                size.width * 0.58f, size.height * 0.48f
+                            )
+                            cubicTo(
+                                size.width * 0.52f, size.height * 0.62f,
+                                size.width * 0.44f, size.height * 0.78f,
+                                size.width * 0.46f, size.height * 0.88f
+                            )
+                            cubicTo(
+                                size.width * 0.48f, size.height * 0.95f,
+                                size.width * 0.36f, size.height * 0.98f,
+                                size.width * 0.22f, size.height * 1.05f
+                            )
+                        }
+                        drawPath(
+                            path = rioAcarau,
+                            color = Color(0xFFBADCEF),
+                            style = Stroke(
+                                width = 22.dp.toPx(),
+                                cap = StrokeCap.Round,
+                                join = StrokeJoin.Round
+                            )
+                        )
+
+                        // 4. Neighborhood Street Grid Layout (High fidelity white details)
+                        // Grid A: Renato Parente (Top Left - oblique grid lines)
+                        for (i in 0..7) {
+                            val spacing = i * 22.dp.toPx()
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(spacing, -20f),
+                                end = Offset(spacing + size.width * 0.2f, size.height * 0.25f),
+                                strokeWidth = 1.5.dp.toPx()
+                            )
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(-20f, spacing),
+                                end = Offset(size.width * 0.25f, spacing),
+                                strokeWidth = 1.5.dp.toPx()
+                            )
+                        }
+
+                        // Grid B: Junco & Padre Ibiapina (Mid Left - straight vertical/horizontal blocks)
+                        for (i in 0..7) {
+                            val x = size.width * (0.04f + i * 0.055f)
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(x, size.height * 0.38f),
+                                end = Offset(x, size.height * 0.66f),
+                                strokeWidth = 1.2.dp.toPx()
+                            )
+                        }
+                        for (i in 0..6) {
+                            val y = size.height * (0.40f + i * 0.04f)
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(size.width * 0.04f, y),
+                                end = Offset(size.width * 0.44f, y),
+                                strokeWidth = 1.2.dp.toPx()
+                            )
+                        }
+
+                        // Grid C: Centro (Dense diagonal center block system)
+                        for (i in -4..5) {
+                            val offset = i * 24.dp.toPx()
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(size.width * 0.32f + offset, size.height * 0.32f),
+                                end = Offset(size.width * 0.72f + offset, size.height * 0.62f),
+                                strokeWidth = 1.5.dp.toPx()
+                            )
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(size.width * 0.72f + offset, size.height * 0.32f),
+                                end = Offset(size.width * 0.32f + offset, size.height * 0.62f),
+                                strokeWidth = 1.5.dp.toPx()
+                            )
+                        }
+
+                        // Grid D: Pedrinhas & Dom Expedito (Lower right curving cluster)
+                        for (i in 0..6) {
+                            val dx = i * 20.dp.toPx()
+                            val cPath = Path().apply {
+                                moveTo(size.width * 0.50f + dx, size.height * 0.60f)
+                                quadraticTo(
+                                    size.width * 0.62f + dx, size.height * 0.65f,
+                                    size.width * 0.68f + dx, size.height * 0.85f
+                                )
+                            }
+                            drawPath(cPath, Color(0xFFFFFFFF), style = Stroke(width = 1.2.dp.toPx()))
+                        }
+                        for (i in 0..4) {
+                            val dy = i * 25.dp.toPx()
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(size.width * 0.50f, size.height * 0.62f + dy),
+                                end = Offset(size.width * 0.95f, size.height * 0.60f + dy),
+                                strokeWidth = 1.2.dp.toPx()
+                            )
+                        }
+
+                        // Grid E: COHAB I & II & Distrito Industrial (Bottom Right - compact aligned streets)
+                        for (i in 0..7) {
+                            val offset = i * 18.dp.toPx()
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(size.width * 0.56f, size.height * 0.72f + offset),
+                                end = Offset(size.width * 0.98f, size.height * 0.72f + offset),
+                                strokeWidth = 1.5.dp.toPx()
+                            )
+                            drawLine(
+                                color = Color(0xFFFFFFFF),
+                                start = Offset(size.width * 0.56f + offset, size.height * 0.70f),
+                                end = Offset(size.width * 0.56f + offset, size.height * 0.98f),
+                                strokeWidth = 1.5.dp.toPx()
+                            )
+                        }
+
+                        // 5. Main Highways & Key Avenues (Thicker with beautiful styling)
+                        // Highway BR-120 / BR-222 (Bottom horizontal transit corridor)
+                        val highwayBR = Path().apply {
+                            moveTo(-20f, size.height * 0.84f)
+                            lineTo(size.width * 0.20f, size.height * 0.83f)
+                            lineTo(size.width * 0.45f, size.height * 0.79f)
+                            lineTo(size.width * 0.65f, size.height * 0.86f)
+                            lineTo(size.width + 20f, size.height * 0.82f)
+                        }
+                        // Border/Glow outline
+                        drawPath(highwayBR, color = Color(0xFFE2E8F0), style = Stroke(width = 6.dp.toPx(), cap = StrokeCap.Round))
+                        // Orange inner lane
+                        drawPath(highwayBR, color = Color(0xFFFDBA74), style = Stroke(width = 4.dp.toPx(), cap = StrokeCap.Round))
+
+                        // State Highway CE-440 (Diagonals top-left to top-center)
+                        val highwayCE = Path().apply {
+                            moveTo(size.width * 0.12f, -20f)
+                            lineTo(size.width * 0.28f, size.height * 0.12f)
+                            lineTo(size.width * 0.48f, size.height * 0.08f)
+                            lineTo(size.width * 0.74f, size.height * 0.28f)
+                        }
+                        drawPath(highwayCE, color = Color(0xFFE2E8F0), style = Stroke(width = 5.dp.toPx(), cap = StrokeCap.Round))
+                        drawPath(highwayCE, color = Color(0xFFFDBA74), style = Stroke(width = 3.dp.toPx(), cap = StrokeCap.Round))
+
+                        // Av. Dom José (Primary central boulevard crossing river)
+                        val avDomJose = Path().apply {
+                            moveTo(-20f, size.height * 0.52f)
+                            lineTo(size.width * 0.45f, size.height * 0.52f)
+                            // Cross bridge over Rio Acaraú
+                            lineTo(size.width * 0.60f, size.height * 0.48f)
+                            lineTo(size.width * 0.85f, size.height * 0.44f)
+                        }
+                        drawPath(avDomJose, color = Color(0xFFFFFFFF), style = Stroke(width = 5.dp.toPx()))
+
+                        // Bridge structures on river intersection to give 3D depth
+                        drawRect(
+                            color = Color(0xFF94A3B8),
+                            topLeft = Offset(size.width * 0.54f, size.height * 0.48f),
+                            size = androidx.compose.ui.geometry.Size(12.dp.toPx(), 4.dp.toPx())
+                        )
+
+                        // Av. Cleto Pontes / Senador Fernandes Távora (Vertical spine)
+                        val avCletoPontes = Path().apply {
+                            moveTo(size.width * 0.38f, -20f)
+                            lineTo(size.width * 0.46f, size.height * 0.44f)
+                            lineTo(size.width * 0.52f, size.height * 0.86f)
+                            lineTo(size.width * 0.50f, size.height * 1.05f)
+                        }
+                        drawPath(avCletoPontes, color = Color(0xFFFFFFFF), style = Stroke(width = 4.dp.toPx()))
+
+                        // 6. District and Landmark Typography Labels
+                        val nativeCanvas = drawContext.canvas.nativeCanvas
+
+                        // Primary Neighborhoods Design Typography
+                        val labelPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#475569") // Slate gray 600
+                            textSize = 10.sp.toPx()
+                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.NORMAL)
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                        val titlePaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#1E293B") // Dark Slate 800
+                            textSize = 17.sp.toPx()
+                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+                        val riverPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#4385A8") // Indigo-ish river color
+                            textSize = 9.sp.toPx()
+                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.ITALIC)
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+
+                        // City center marker
+                        nativeCanvas.drawText("Sobral", size.width * 0.45f, size.height * 0.43f, titlePaint)
+
+                        // Districts
+                        nativeCanvas.drawText("Renato Parente", size.width * 0.18f, size.height * 0.08f, labelPaint)
+                        nativeCanvas.drawText("Nossa Senhora de Fátima", size.width * 0.16f, size.height * 0.18f, labelPaint)
+                        nativeCanvas.drawText("Nova Caiçara", size.width * 0.30f, size.height * 0.25f, labelPaint)
+                        nativeCanvas.drawText("Parque Silvana", size.width * 0.52f, size.height * 0.18f, labelPaint)
+                        nativeCanvas.drawText("Junco", size.width * 0.28f, size.height * 0.58f, labelPaint)
+                        nativeCanvas.drawText("Centro", size.width * 0.50f, size.height * 0.55f, labelPaint)
+                        nativeCanvas.drawText("Pedrinhas", size.width * 0.74f, size.height * 0.52f, labelPaint)
+                        nativeCanvas.drawText("Dom Expedito", size.width * 0.65f, size.height * 0.71f, labelPaint)
+                        nativeCanvas.drawText("COHAB II", size.width * 0.85f, size.height * 0.74f, labelPaint)
+                        nativeCanvas.drawText("COHAB I", size.width * 0.76f, size.height * 0.84f, labelPaint)
+                        
+                        // Rivers & Roads
+                        nativeCanvas.drawText("Rio Acaraú", size.width * 0.76f, size.height * 0.22f, riverPaint)
+                        nativeCanvas.drawText("Rio Acaraú", size.width * 0.36f, size.height * 0.93f, riverPaint)
+
+                        // Amber Styled Tag for CE-417
+                        val tagX = size.width * 0.26f
+                        val tagY = size.height * 0.09f
+                        val rectPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#FFFBEB") // amber-50
+                            style = android.graphics.Paint.Style.FILL
+                        }
+                        val borderPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#F59E0B") // amber-500
+                            style = android.graphics.Paint.Style.STROKE
+                            strokeWidth = 1.dp.toPx()
+                        }
+                        val tagTextPaint = android.graphics.Paint().apply {
+                            color = android.graphics.Color.parseColor("#B45309") // amber-700
+                            textSize = 8.sp.toPx()
+                            typeface = android.graphics.Typeface.create("sans-serif", android.graphics.Typeface.BOLD)
+                            textAlign = android.graphics.Paint.Align.CENTER
+                        }
+
+                        nativeCanvas.drawRoundRect(
+                            tagX - 16.dp.toPx(),
+                            tagY - 6.dp.toPx(),
+                            tagX + 16.dp.toPx(),
+                            tagY + 6.dp.toPx(),
+                            3.dp.toPx(),
+                            3.dp.toPx(),
+                            rectPaint
+                        )
+                        nativeCanvas.drawRoundRect(
+                            tagX - 16.dp.toPx(),
+                            tagY - 6.dp.toPx(),
+                            tagX + 16.dp.toPx(),
+                            tagY + 6.dp.toPx(),
+                            3.dp.toPx(),
+                            3.dp.toPx(),
+                            borderPaint
+                        )
+                        nativeCanvas.drawText("CE-417", tagX, tagY + 3.dp.toPx(), tagTextPaint)
+
+                        // Amber Styled Tag for CE-440 top
+                        val tagX2 = size.width * 0.50f
+                        val tagY2 = size.height * 0.06f
+                        nativeCanvas.drawRoundRect(
+                            tagX2 - 16.dp.toPx(),
+                            tagY2 - 6.dp.toPx(),
+                            tagX2 + 16.dp.toPx(),
+                            tagY2 + 6.dp.toPx(),
+                            3.dp.toPx(),
+                            3.dp.toPx(),
+                            rectPaint
+                        )
+                        nativeCanvas.drawRoundRect(
+                            tagX2 - 16.dp.toPx(),
+                            tagY2 - 6.dp.toPx(),
+                            tagX2 + 16.dp.toPx(),
+                            tagY2 + 6.dp.toPx(),
+                            3.dp.toPx(),
+                            3.dp.toPx(),
+                            borderPaint
+                        )
+                        nativeCanvas.drawText("CE-440", tagX2, tagY2 + 3.dp.toPx(), tagTextPaint)
+                    }
+
+                    // 1. User Location Pin on Map (Blue glowing pulse) representing user's GPS focus
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(
+                                x = (320 * 0.45f).dp,
+                                y = (450 * 0.4f).dp
+                            )
+                    ) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Box(
+                                modifier = Modifier
+                                    .size(20.dp)
+                                    .background(Color(0xFF3B82F6).copy(alpha = 0.3f), CircleShape)
+                                    .border(1.dp, Color(0xFF2563EB), CircleShape),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Box(
+                                    modifier = Modifier
+                                        .size(10.dp)
+                                        .background(Color(0xFF2563EB), CircleShape)
+                                )
+                            }
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "Você",
+                                fontSize = 8.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White,
+                                modifier = Modifier
+                                    .background(Color(0xFF2563EB), RoundedCornerShape(4.dp))
+                                    .padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    }
+
+                    // Interactive Pins mapped visually on top
+                    val widthLimit = 320.dp
+                    val heightLimit = 450.dp
+                    stationsToShow.forEach { station ->
+                        val xPercent = when (station.id % 3) {
+                            0 -> 0.2f
+                            1 -> 0.7f
+                            else -> 0.55f
+                        }
+                        val yPercent = when (station.id % 4) {
+                            0 -> 0.15f
+                            1 -> 0.45f
+                            2 -> 0.72f
+                            else -> 0.6f
+                        }
+
+                        val hasActiveMarkerSelected = station.id == selectedId
+
                         Box(
                             modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(
-                                    if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer 
-                                    else if (station.isPartner) Color(0xFF0369A1) // Partner color
-                                    else MaterialTheme.colorScheme.primary
+                                .align(Alignment.TopStart)
+                                .offset(
+                                    x = (320 * xPercent).dp,
+                                    y = (450 * yPercent).dp
                                 )
-                                .border(
-                                    width = if (station.isPartner) 3.dp else 2.dp,
-                                    color = if (station.isPartner) Color(0xFFF59E0B) else Color.White,
-                                    shape = RoundedCornerShape(8.dp)
-                                )
-                                .padding(horizontal = 8.dp, vertical = 4.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                if (station.isPartner) {
-                                    Icon(
-                                        imageVector = Icons.Default.Star,
-                                        contentDescription = "Parceiro",
-                                        tint = Color(0xFFF59E0B),
-                                        modifier = Modifier.size(10.dp)
-                                    )
+                                .clickable {
+                                    viewModel.selectStation(station.id)
+                                    isStationSelectedByClick = true
+                                    isMinimized = false
                                 }
-                                Text(
-                                    text = String.format("R$ %.2f", station.priceGasoline),
-                                    fontSize = 10.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (hasActiveMarkerSelected) Color.Black else Color.White
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                // Tag box showing live price
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(
+                                            if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer 
+                                            else if (station.isPartner) Color(0xFF0369A1) // Partner color
+                                            else MaterialTheme.colorScheme.primary
+                                        )
+                                        .border(
+                                            width = if (station.isPartner) 3.dp else 2.dp,
+                                            color = if (station.isPartner) Color(0xFFF59E0B) else Color.White,
+                                            shape = RoundedCornerShape(8.dp)
+                                        )
+                                        .padding(horizontal = 8.dp, vertical = 4.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                        if (station.isPartner) {
+                                            Icon(
+                                                imageVector = Icons.Default.Star,
+                                                contentDescription = "Parceiro",
+                                                tint = Color(0xFFF59E0B),
+                                                modifier = Modifier.size(10.dp)
+                                            )
+                                        }
+                                        Text(
+                                            text = String.format("R$ %.2f", station.priceGasoline),
+                                            fontSize = 10.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (hasActiveMarkerSelected) Color.Black else Color.White
+                                        )
+                                    }
+                                }
+
+                                // Bottom indicator arrow
+                                Box(
+                                    modifier = Modifier
+                                        .size(8.dp)
+                                        .background(
+                                            if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
+                                            RoundedCornerShape(bottomStart = 2.dp)
+                                        )
+                                        .border(2.dp, Color.White, RoundedCornerShape(bottomStart = 2.dp))
                                 )
                             }
                         }
-
-                        // Bottom indicator arrow
-                        Box(
-                            modifier = Modifier
-                                .size(8.dp)
-                                .background(
-                                    if (hasActiveMarkerSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.primary,
-                                    RoundedCornerShape(bottomStart = 2.dp)
-                                )
-                                .border(2.dp, Color.White, RoundedCornerShape(bottomStart = 2.dp))
-                        )
                     }
                 }
             }
+
+            // ---- NON-SCALING FLOATING LAYOUTS ----
 
             // Floating Controls: Zoom in, Zoom out, My Location
             Column(
@@ -1467,7 +2034,7 @@ fun DriverMap(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 IconButton(
-                    onClick = { Toast.makeText(context, "Aumentando zoom!", Toast.LENGTH_SHORT).show() },
+                    onClick = { zoomScale = (zoomScale * 1.25f).coerceIn(0.5f, 5.0f) },
                     modifier = Modifier
                         .size(44.dp)
                         .background(Color.White, RoundedCornerShape(12.dp))
@@ -1483,14 +2050,31 @@ fun DriverMap(
                         .clip(RoundedCornerShape(12.dp))
                         .background(Color.White)
                         .border(1.dp, Color(0xFFE2E8F0), RoundedCornerShape(12.dp))
-                        .clickable { Toast.makeText(context, "Diminuindo zoom!", Toast.LENGTH_SHORT).show() },
+                        .clickable { zoomScale = (zoomScale / 1.25f).coerceIn(0.5f, 5.0f) },
                     contentAlignment = Alignment.Center
                 ) {
                     Text("-", fontSize = 24.sp, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
                 }
 
                 IconButton(
-                    onClick = { Toast.makeText(context, "Sua localização localizada!", Toast.LENGTH_SHORT).show() },
+                    onClick = {
+                        val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                        val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+                        if (fineGranted || coarseGranted) {
+                            requestSystemLocation(context, viewModel)
+                            Toast.makeText(context, "Localização GPS atualizada!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            gpsPermissionLauncher.launch(
+                                arrayOf(
+                                    Manifest.permission.ACCESS_FINE_LOCATION,
+                                    Manifest.permission.ACCESS_COARSE_LOCATION
+                                )
+                            )
+                        }
+                        // Reset zoom and center
+                        zoomScale = 1.0f
+                        mapOffset = Offset.Zero
+                    },
                     modifier = Modifier
                         .size(44.dp)
                         .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(12.dp))
