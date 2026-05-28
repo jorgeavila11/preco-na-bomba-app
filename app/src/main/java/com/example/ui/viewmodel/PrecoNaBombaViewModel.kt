@@ -42,6 +42,63 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     private val _userLocation = MutableStateFlow<Pair<Double, Double>>(Pair(-23.5505, -46.6333)) // Default starting coordinates (Av. Paulista central area)
     val userLocation: StateFlow<Pair<Double, Double>> = _userLocation.asStateFlow()
 
+    // Route coordinates state representing the computed best pathway
+    private val _activeRoute = MutableStateFlow<List<Pair<Double, Double>>>(emptyList())
+    val activeRoute: StateFlow<List<Pair<Double, Double>>> = _activeRoute.asStateFlow()
+
+    fun clearActiveRoute() {
+        _activeRoute.value = emptyList()
+    }
+
+    fun calculateRoute(startLat: Double, startLng: Double, endLat: Double, endLng: Double) {
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                val url = "https://router.project-osrm.org/route/v1/driving/$startLng,$startLat;$endLng,$endLat?overview=full&geometries=geojson"
+                val request = okhttp3.Request.Builder()
+                    .url(url)
+                    .header("User-Agent", "PrecoNaBombaApp")
+                    .build()
+                
+                httpClient.newCall(request).execute().use { response ->
+                    if (response.isSuccessful) {
+                        val bodyString = response.body?.string()
+                        if (bodyString != null) {
+                            val jsonObject = org.json.JSONObject(bodyString)
+                            val routes = jsonObject.optJSONArray("routes")
+                            if (routes != null && routes.length() > 0) {
+                                val route = routes.getJSONObject(0)
+                                val geometry = route.optJSONObject("geometry")
+                                val coordinates = geometry?.optJSONArray("coordinates")
+                                if (coordinates != null) {
+                                    val points = mutableListOf<Pair<Double, Double>>()
+                                    for (i in 0 until coordinates.length()) {
+                                        val point = coordinates.getJSONArray(i)
+                                        val lng = point.getDouble(0)
+                                        val lat = point.getDouble(1)
+                                        points.add(Pair(lat, lng))
+                                    }
+                                    _activeRoute.value = points
+                                    return@launch
+                                }
+                            }
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("PrecoNaBombaVM", "Erro ao obter rota da OSRM API: ${e.message}", e)
+            }
+            
+            // Safe fallback grid calculation to ensure we always draw a route even if offline or OSRM is blocked
+            val points = mutableListOf<Pair<Double, Double>>()
+            points.add(Pair(startLat, startLng))
+            val midLat = startLat + (endLat - startLat) * 0.5
+            points.add(Pair(midLat, startLng))
+            points.add(Pair(midLat, endLng))
+            points.add(Pair(endLat, endLng))
+            _activeRoute.value = points
+        }
+    }
+
     fun updateUserLocation(lat: Double, lng: Double) {
         _userLocation.value = Pair(lat, lng)
         val dist = calculateDistanceInKm(lat, lng, lastFetchLat, varLastFetchLng)
@@ -987,6 +1044,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
 
     fun selectStation(id: Int) {
         _selectedStationId.value = id
+        _activeRoute.value = emptyList()
     }
 
     fun setPlan(plan: String) {

@@ -134,25 +134,31 @@ fun MapMiniPreview(onNavigateToMap: () -> Unit, countNearby: Int) {
     }
 }
 
-fun requestSystemLocation(context: Context, viewModel: PrecoNaBombaViewModel) {
+fun requestSystemLocation(context: Context, viewModel: PrecoNaBombaViewModel, silent: Boolean = true) {
     try {
         val locationManager = context.getSystemService(Context.LOCATION_SERVICE) as? LocationManager
         if (locationManager == null) {
-            Toast.makeText(context, "Serviço de localização indisponível.", Toast.LENGTH_SHORT).show()
+            if (!silent) {
+                Toast.makeText(context, "Serviço de localização indisponível.", Toast.LENGTH_SHORT).show()
+            }
             return
         }
         val isGpsEnabled = locationManager.isProviderEnabled(LocationManager.GPS_PROVIDER)
         val isNetworkEnabled = locationManager.isProviderEnabled(LocationManager.NETWORK_PROVIDER)
 
         if (!isGpsEnabled && !isNetworkEnabled) {
-            Toast.makeText(context, "Por favor, ative o GPS/Localização no dispositivo.", Toast.LENGTH_LONG).show()
+            if (!silent) {
+                Toast.makeText(context, "Por favor, ative o GPS/Localização no dispositivo.", Toast.LENGTH_LONG).show()
+            }
             return
         }
 
         val fineCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION)
         val coarseCheck = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION)
         if (fineCheck != PackageManager.PERMISSION_GRANTED && coarseCheck != PackageManager.PERMISSION_GRANTED) {
-            Toast.makeText(context, "Permissão necessária.", Toast.LENGTH_SHORT).show()
+            if (!silent) {
+                Toast.makeText(context, "Permissão necessária.", Toast.LENGTH_SHORT).show()
+            }
             return
         }
 
@@ -167,27 +173,43 @@ fun requestSystemLocation(context: Context, viewModel: PrecoNaBombaViewModel) {
 
         lastKnown?.let {
             viewModel.updateUserLocation(it.latitude, it.longitude)
-            Toast.makeText(context, "Localização atualizada via GPS!", Toast.LENGTH_SHORT).show()
-            return
+            if (!silent) {
+                Toast.makeText(context, "Localização inicial obtida via GPS!", Toast.LENGTH_SHORT).show()
+            }
         }
 
-        // If no last known location, request single update
-        val provider = if (isGpsEnabled) LocationManager.GPS_PROVIDER else LocationManager.NETWORK_PROVIDER
-        locationManager.requestSingleUpdate(provider, object : LocationListener {
-            override fun onLocationChanged(location: Location) {
-                viewModel.updateUserLocation(location.latitude, location.longitude)
-                Toast.makeText(context, "Localização atualizada!", Toast.LENGTH_SHORT).show()
-            }
-            override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
-            override fun onProviderEnabled(provider: String) {}
-            override fun onProviderDisabled(provider: String) {}
-        }, context.mainLooper)
+        // Always request a fresh single update to ensure maximum accuracy
+        try {
+            val provider = if (isGpsEnabled) LocationManager.GPS_PROVIDER else LocationManager.NETWORK_PROVIDER
+            locationManager.requestSingleUpdate(provider, object : LocationListener {
+                override fun onLocationChanged(location: Location) {
+                    viewModel.updateUserLocation(location.latitude, location.longitude)
+                    if (!silent) {
+                        Toast.makeText(context, "Localização atualizada com precisão!", Toast.LENGTH_SHORT).show()
+                    }
+                }
+                override fun onStatusChanged(provider: String?, status: Int, extras: Bundle?) {}
+                override fun onProviderEnabled(provider: String) {}
+                override fun onProviderDisabled(provider: String) {}
+            }, context.mainLooper)
 
-        Toast.makeText(context, "Obtendo sinal GPS...", Toast.LENGTH_SHORT).show()
+            if (!silent && lastKnown == null) {
+                Toast.makeText(context, "Obtendo sinal GPS...", Toast.LENGTH_SHORT).show()
+            }
+        } catch (e: Exception) {
+            // Fallback if requestSingleUpdate is not supported or fails
+            if (lastKnown == null && !silent) {
+                Toast.makeText(context, "Erro ao obter atualização de GPS.", Toast.LENGTH_SHORT).show()
+            }
+        }
     } catch (e: SecurityException) {
-        Toast.makeText(context, "Erro de segurança ao acessar GPS.", Toast.LENGTH_SHORT).show()
+        if (!silent) {
+            Toast.makeText(context, "Erro de segurança ao acessar GPS.", Toast.LENGTH_SHORT).show()
+        }
     } catch (e: Exception) {
-        Toast.makeText(context, "Erro ao obter GPS: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        if (!silent) {
+            Toast.makeText(context, "Erro ao obter GPS: ${e.localizedMessage}", Toast.LENGTH_SHORT).show()
+        }
     }
 }
 
@@ -270,7 +292,7 @@ fun DriverLocationPanel(viewModel: PrecoNaBombaViewModel, modifier: Modifier = M
                         ) == PackageManager.PERMISSION_GRANTED
 
                         if (fineGranted || coarseGranted) {
-                            requestSystemLocation(context, viewModel)
+                            requestSystemLocation(context, viewModel, silent = false)
                         } else {
                             permissionLauncher.launch(
                                 arrayOf(
@@ -1223,12 +1245,18 @@ fun DriverMap(
     val isPremium = profileState?.isPremium ?: false
     val averageConsumption = profileState?.averageConsumption ?: 12.0
     val activeFilter by viewModel.selectedFuelFilter.collectAsState()
+    val activeRoute by viewModel.activeRoute.collectAsState()
     val context = LocalContext.current
 
     val userLocation by viewModel.userLocation.collectAsState()
     var filterNearbyOnly by remember { mutableStateOf(true) }
     var isStationSelectedByClick by remember { mutableStateOf(false) }
     var isMinimized by remember { mutableStateOf(false) }
+
+    // Pre-calculate GeoPoints list to offload UI thread overhead from recompositions
+    val routeGeoPoints = remember(activeRoute) {
+        activeRoute.map { org.osmdroid.util.GeoPoint(it.first, it.second) }
+    }
 
     // Persistent MapView managed within Compose-safe state
     val mapView = remember {
@@ -1274,6 +1302,47 @@ fun DriverMap(
         }
     }
 
+    // Zoom and center map viewport on calculated route safely without using hardware-vulnerable layout measurement zoomToBoundingBox
+    LaunchedEffect(activeRoute) {
+        if (activeRoute.isNotEmpty()) {
+            try {
+                val lats = activeRoute.map { it.first }
+                val lons = activeRoute.map { it.second }
+                val minLat = lats.minOrNull() ?: userLocation.first
+                val maxLat = lats.maxOrNull() ?: userLocation.first
+                val minLon = lons.minOrNull() ?: userLocation.second
+                val maxLon = lons.maxOrNull() ?: userLocation.second
+
+                // Center coordinates of the bounding box
+                val centerLat = (minLat + maxLat) / 2.0
+                val centerLon = (minLon + maxLon) / 2.0
+
+                // Span of the coordinates to choose an accurate static zoom level
+                val latSpan = Math.abs(maxLat - minLat)
+                val lonSpan = Math.abs(maxLon - minLon)
+                val maxSpan = maxOf(latSpan, lonSpan)
+
+                // Select predictable zoom level depending on the route span distance (to avoid crashing loop projections)
+                val safeZoom = when {
+                    maxSpan < 0.005 -> 16.5
+                    maxSpan < 0.015 -> 15.5
+                    maxSpan < 0.04 -> 14.5
+                    maxSpan < 0.09 -> 13.5
+                    maxSpan < 0.20 -> 12.0
+                    maxSpan < 0.45 -> 11.0
+                    else -> 10.0
+                }
+
+                mapView.controller.setZoom(safeZoom)
+                mapView.controller.setCenter(org.osmdroid.util.GeoPoint(centerLat, centerLon))
+            } catch (e: Exception) {
+                try {
+                    mapView.controller.setCenter(org.osmdroid.util.GeoPoint(userLocation.first, userLocation.second))
+                } catch (ignored: Exception) {}
+            }
+        }
+    }
+
     val gpsPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions()
     ) { permissions ->
@@ -1287,6 +1356,14 @@ fun DriverMap(
     }
 
     LaunchedEffect(Unit) {
+        // Force-center the map immediately on the player's existing location state on entering the map screen
+        try {
+            mapView.controller.animateTo(org.osmdroid.util.GeoPoint(userLocation.first, userLocation.second))
+            mapView.controller.setZoom(15.5)
+        } catch (e: Exception) {
+            // Ignored
+        }
+
         val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
         val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
         if (fineGranted || coarseGranted) {
@@ -1652,20 +1729,40 @@ fun DriverMap(
                                         modifier = Modifier.fillMaxWidth(),
                                         horizontalArrangement = Arrangement.spacedBy(12.dp)
                                     ) {
+                                        val isRouteActiveForThisStation = activeRoute.isNotEmpty() && selectedId == station.id
                                         Button(
                                             onClick = {
-                                                Toast.makeText(context, "Calculando melhor trajeto com GPS no Google Maps!", Toast.LENGTH_LONG).show()
+                                                if (isRouteActiveForThisStation) {
+                                                    viewModel.clearActiveRoute()
+                                                    Toast.makeText(context, "Rota de navegação limpa!", Toast.LENGTH_SHORT).show()
+                                                } else {
+                                                    viewModel.calculateRoute(
+                                                        userLocation.first, userLocation.second,
+                                                        station.latitude, station.longitude
+                                                    )
+                                                    Toast.makeText(context, "Calculando a melhor rota até ${station.name}...", Toast.LENGTH_SHORT).show()
+                                                }
                                             },
                                             modifier = Modifier
                                                 .weight(1f)
                                                 .height(52.dp),
                                             shape = RoundedCornerShape(12.dp),
-                                            colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
+                                            colors = ButtonDefaults.buttonColors(
+                                                containerColor = if (isRouteActiveForThisStation) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary
+                                            )
                                         ) {
                                             Row(verticalAlignment = Alignment.CenterVertically) {
-                                                Icon(Icons.Default.LocationOn, null, tint = Color.White)
+                                                Icon(
+                                                    imageVector = if (isRouteActiveForThisStation) Icons.Default.Close else Icons.Default.LocationOn,
+                                                    contentDescription = null,
+                                                    tint = Color.White
+                                                )
                                                 Spacer(modifier = Modifier.width(8.dp))
-                                                Text("Como Chegar", fontWeight = FontWeight.Bold, color = Color.White)
+                                                Text(
+                                                    text = if (isRouteActiveForThisStation) "Limpar Rota" else "Como Chegar",
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color.White
+                                                )
                                             }
                                         }
 
@@ -1707,6 +1804,18 @@ fun DriverMap(
                 modifier = Modifier.fillMaxSize(),
                 update = { mv ->
                     mv.overlays.clear()
+                    
+                    // 0. Active route overlay line
+                    if (routeGeoPoints.isNotEmpty()) {
+                        val routeLine = org.osmdroid.views.overlay.Polyline(mv).apply {
+                            setPoints(routeGeoPoints)
+                            outlinePaint.color = android.graphics.Color.parseColor("#2563EB") // Royal blue
+                            outlinePaint.strokeWidth = 12f
+                            outlinePaint.strokeCap = android.graphics.Paint.Cap.ROUND
+                            outlinePaint.strokeJoin = android.graphics.Paint.Join.ROUND
+                        }
+                        mv.overlays.add(routeLine)
+                    }
                     
                     // 1. User Position pin on Map
                     val userMarker = org.osmdroid.views.overlay.Marker(mv).apply {
@@ -1776,8 +1885,7 @@ fun DriverMap(
                         val fineGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
                         val coarseGranted = ContextCompat.checkSelfPermission(context, Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
                         if (fineGranted || coarseGranted) {
-                            requestSystemLocation(context, viewModel)
-                            Toast.makeText(context, "Localização GPS atualizada!", Toast.LENGTH_SHORT).show()
+                            requestSystemLocation(context, viewModel, silent = false)
                         } else {
                             gpsPermissionLauncher.launch(
                                 arrayOf(
