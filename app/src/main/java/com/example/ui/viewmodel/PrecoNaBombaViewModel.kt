@@ -1189,6 +1189,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
 
         if (docId != null) {
             val idx = currentList.indexOfFirst { it.docId == docId }
+            val existing = currentList.find { it.docId == docId }
             val updatedPromo = PromoItem(
                 title = title,
                 category = category,
@@ -1203,15 +1204,39 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                 endDate = endDate,
                 price = price,
                 firestoreStationId = ownerUid,
-                docId = docId
+                docId = docId,
+                isDeactivated = existing?.isDeactivated ?: false,
+                deactivationJustification = existing?.deactivationJustification,
+                deactivationTimestamp = existing?.deactivationTimestamp
             )
             if (idx != -1) {
                 currentList[idx] = updatedPromo
             } else {
                 currentList.add(0, updatedPromo)
             }
+            
+            _promoList.value = currentList
+            
+            // Synchronize promotion directly to Firestore under "promotions" collection
+            FirebaseManager.syncPromotionToFirestore(
+                stationIdStr = ownerUid,
+                title = title,
+                description = description,
+                price = price,
+                category = category,
+                startDate = startDate,
+                endDate = endDate,
+                isPremium = isPremium,
+                docId = docId,
+                isDeactivated = existing?.isDeactivated ?: false,
+                deactivationJustification = existing?.deactivationJustification,
+                deactivationTimestamp = existing?.deactivationTimestamp,
+                onComplete = { did ->
+                    fetchPromotions()
+                }
+            )
         } else {
-            currentList.add(0, PromoItem(
+            val newPromo = PromoItem(
                 title = title,
                 category = category,
                 value = formattedPrice,
@@ -1225,25 +1250,26 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                 endDate = endDate,
                 price = price,
                 firestoreStationId = ownerUid
-            ))
+            )
+            currentList.add(0, newPromo)
+            _promoList.value = currentList
+            
+            // Synchronize promotion directly to Firestore under "promotions" collection
+            FirebaseManager.syncPromotionToFirestore(
+                stationIdStr = ownerUid,
+                title = title,
+                description = description,
+                price = price,
+                category = category,
+                startDate = startDate,
+                endDate = endDate,
+                isPremium = isPremium,
+                docId = null,
+                onComplete = { did ->
+                    fetchPromotions()
+                }
+            )
         }
-        _promoList.value = currentList
-        
-        // Synchronize promotion directly to Firestore under "promotions" collection
-        FirebaseManager.syncPromotionToFirestore(
-            stationIdStr = ownerUid,
-            title = title,
-            description = description,
-            price = price,
-            category = category,
-            startDate = startDate,
-            endDate = endDate,
-            isPremium = isPremium,
-            docId = docId,
-            onComplete = { did ->
-                fetchPromotions()
-            }
-        )
     }
 
     fun deletePromotion(promo: PromoItem) {
@@ -1255,6 +1281,32 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                 if (success) {
                     fetchPromotions()
                 }
+            }
+        }
+    }
+
+    fun deactivatePromotion(promo: PromoItem, justification: String) {
+        val docId = promo.docId ?: return
+        val currentList = _promoList.value.toMutableList()
+        val idx = currentList.indexOfFirst { it.docId == docId }
+        
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        val timestampStr = sdf.format(java.util.Date())
+
+        val deactivatedPromo = promo.copy(
+            isDeactivated = true,
+            deactivationJustification = justification,
+            deactivationTimestamp = timestampStr
+        )
+        if (idx != -1) {
+            currentList[idx] = deactivatedPromo
+            _promoList.value = currentList
+        }
+        
+        FirebaseManager.deactivatePromotionInFirestore(docId, justification, timestampStr) { success ->
+            if (success) {
+                fetchPromotions()
             }
         }
     }
@@ -1274,5 +1326,8 @@ data class PromoItem(
     val endDate: String? = null,
     val price: Double? = null,
     val firestoreStationId: String? = null,
-    val docId: String? = null
+    val docId: String? = null,
+    val isDeactivated: Boolean = false,
+    val deactivationJustification: String? = null,
+    val deactivationTimestamp: String? = null
 )

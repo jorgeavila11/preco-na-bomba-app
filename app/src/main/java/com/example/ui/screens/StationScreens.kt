@@ -39,6 +39,11 @@ fun MainStationHome(
     var editingPromo by remember { mutableStateOf<PromoItem?>(null) }
     var isUpgradeOfferOpen by remember { mutableStateOf(false) }
 
+    var deactivatingPromo by remember { mutableStateOf<PromoItem?>(null) }
+    var showDeactivateDialog by remember { mutableStateOf(false) }
+    var selectedJustificationIndex by remember { mutableStateOf(-1) }
+    var customJustificationText by remember { mutableStateOf("") }
+
     // Subscription status
     val planState by viewModel.ownerStationPlan.collectAsState()
 
@@ -610,17 +615,40 @@ fun MainStationHome(
                                                 color = Color(0xFF64748B)
                                             )
                                         }
-                                        if (expired) {
+                                        if (item.isDeactivated) {
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(Color(0xFFFEF2F2), RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Encerrada",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFEF4444)
+                                                    )
+                                                }
+                                                if (!item.deactivationJustification.isNullOrBlank()) {
+                                                    Text(
+                                                        text = item.deactivationJustification,
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFFEF4444),
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+                                            }
+                                        } else if (expired) {
                                             Box(
                                                 modifier = Modifier
-                                                    .background(Color(0xFFFEE2E2), RoundedCornerShape(6.dp))
+                                                    .background(Color(0xFFF3F4F6), RoundedCornerShape(6.dp))
                                                     .padding(horizontal = 6.dp, vertical = 2.dp)
                                             ) {
                                                 Text(
                                                     text = "Expirada",
                                                     fontSize = 10.sp,
                                                     fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFFEF4444)
+                                                    color = Color(0xFF6B7280)
                                                 )
                                             }
                                         }
@@ -630,6 +658,23 @@ fun MainStationHome(
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(4.dp)
                                     ) {
+                                        if (!item.isDeactivated && !expired) {
+                                            IconButton(
+                                                onClick = {
+                                                    deactivatingPromo = item
+                                                    showDeactivateDialog = true
+                                                },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Encerrar",
+                                                    tint = Color(0xFFEF4444),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+
                                         IconButton(
                                             onClick = {
                                                 editingPromo = item
@@ -667,6 +712,131 @@ fun MainStationHome(
                 }
             }
         }
+    }
+
+    // Deactivate Promotion with Justification Dialog
+    if (showDeactivateDialog && deactivatingPromo != null) {
+        val justifications = listOf(
+            "Estoque esgotado (lote promocional finalizado)",
+            "Aguardando reabastecimento",
+            "Meta de vendas da campanha atingida",
+            "Encerramento antecipado por decisão do posto",
+            "Sistema de desconto fora do ar temporariamente",
+            "Brindes ou itens da promoção esgotados",
+            "Outro motivo (justificativa digitada pelo posto)"
+        )
+
+        AlertDialog(
+            onDismissRequest = {
+                showDeactivateDialog = false
+                selectedJustificationIndex = -1
+                customJustificationText = ""
+            },
+            title = {
+                Text(
+                    text = "Encerrar Promoção",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Selecione uma justificativa para encerrar a promoção \"${deactivatingPromo?.title}\":",
+                        fontSize = 13.sp,
+                        color = Color(0xFF475569)
+                    )
+
+                    justifications.forEachIndexed { index, option ->
+                        val isSelected = selectedJustificationIndex == index
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedJustificationIndex = index }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { selectedJustificationIndex = index }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = option,
+                                fontSize = 13.sp,
+                                color = Color(0xFF1E293B)
+                            )
+                        }
+                    }
+
+                    if (selectedJustificationIndex == justifications.lastIndex) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Digite o motivo personalizado:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B)
+                        )
+                        OutlinedTextField(
+                            value = customJustificationText,
+                            onValueChange = { customJustificationText = it },
+                            placeholder = { Text("Justificativa...", color = Color(0xFF94A3B8), fontSize = 13.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val finalReason = if (selectedJustificationIndex == justifications.lastIndex) {
+                            customJustificationText.trim()
+                        } else if (selectedJustificationIndex >= 0) {
+                            justifications[selectedJustificationIndex]
+                        } else {
+                            ""
+                        }
+
+                        if (finalReason.isEmpty()) {
+                            Toast.makeText(context, "Por favor, defina uma justificativa.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            deactivatingPromo?.let {
+                                viewModel.deactivatePromotion(it, finalReason)
+                                Toast.makeText(context, "Promoção encerrada com sucesso!", Toast.LENGTH_SHORT).show()
+                            }
+                            showDeactivateDialog = false
+                            selectedJustificationIndex = -1
+                            customJustificationText = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Confirmar Encerramento", color = Color.White, fontSize = 13.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeactivateDialog = false
+                        selectedJustificationIndex = -1
+                        customJustificationText = ""
+                    }
+                ) {
+                    Text("Cancelar", color = Color(0xFF64748B), fontSize = 13.sp)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White
+        )
     }
 
     // Upgrade Offer dialogue for Conta Pro owners attempting to create promos

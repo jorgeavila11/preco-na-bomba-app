@@ -576,6 +576,20 @@ fun PaymentCheckoutScreen(
 }
 
 // 3. Premium promotions feed matching images
+fun isDeactivationRecent(timestamp: String?): Boolean {
+    if (timestamp.isNullOrBlank()) return false
+    return try {
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+        sdf.timeZone = java.util.TimeZone.getTimeZone("UTC")
+        val deactivationDate = sdf.parse(timestamp) ?: return false
+        val diffMs = System.currentTimeMillis() - deactivationDate.time
+        val diffHours = diffMs / (1000 * 60 * 60)
+        diffHours < 24
+    } catch (e: Exception) {
+        false
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PremiumPromotionsScreen(
@@ -689,7 +703,11 @@ fun PremiumPromotionsScreen(
             val filteredPromos = remember(promos, activePromoFilter) {
                 promos.filter {
                     val matchesCategory = activePromoFilter == "Tudo" || it.category.contains(activePromoFilter, ignoreCase = true)
-                    matchesCategory && !isPromoExpired(it.endDate)
+                    if (it.isDeactivated) {
+                        matchesCategory && isDeactivationRecent(it.deactivationTimestamp)
+                    } else {
+                        matchesCategory && !isPromoExpired(it.endDate)
+                    }
                 }
             }
 
@@ -820,6 +838,8 @@ fun PremiumPromotionsScreen(
                                 valuePrice = item.value,
                                 distance = item.distanceKm,
                                 isLastDay = lastDay,
+                                isDeactivated = item.isDeactivated,
+                                deactivationJustification = item.deactivationJustification,
                                 onAction = { Toast.makeText(context, "Cupom para ${item.title} resgatado com sucesso!", Toast.LENGTH_SHORT).show() }
                             )
                         }
@@ -838,11 +858,14 @@ fun promoCardRowItem(
     valuePrice: String,
     distance: String,
     isLastDay: Boolean = false,
+    isDeactivated: Boolean = false,
+    deactivationJustification: String? = null,
     onAction: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.cardColors(containerColor = Color.White)
+        colors = CardDefaults.cardColors(containerColor = if (isDeactivated) Color(0xFFFAF1F1) else Color.White),
+        border = if (isDeactivated) BorderStroke(1.dp, Color(0xFFFCA5A5)) else null
     ) {
         Row(
             modifier = Modifier
@@ -854,13 +877,16 @@ fun promoCardRowItem(
             Box(
                 modifier = Modifier
                     .size(64.dp)
-                    .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f), RoundedCornerShape(8.dp)),
+                    .background(
+                        if (isDeactivated) Color(0xFFFEE2E2) else MaterialTheme.colorScheme.primary.copy(alpha = 0.05f),
+                        RoundedCornerShape(8.dp)
+                    ),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
                     imageVector = if (category == "Conveniência") Icons.Default.Star else Icons.Default.Build,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
+                    tint = if (isDeactivated) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary,
                     modifier = Modifier.size(28.dp)
                 )
             }
@@ -872,7 +898,12 @@ fun promoCardRowItem(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween
                 ) {
-                    Text(category.uppercase(), fontSize = 9.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text(
+                        text = if (isDeactivated) "ENCERRADA" else category.uppercase(),
+                        fontSize = 9.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDeactivated) Color(0xFFEF4444) else MaterialTheme.colorScheme.primary
+                    )
                     Text(distance, fontSize = 10.sp, color = Color.Gray)
                 }
 
@@ -885,10 +916,10 @@ fun promoCardRowItem(
                         text = title,
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp,
-                        color = Color.Black,
+                        color = if (isDeactivated) Color.DarkGray else Color.Black,
                         modifier = Modifier.weight(1f)
                     )
-                    if (isLastDay) {
+                    if (isLastDay && !isDeactivated) {
                         Spacer(modifier = Modifier.width(6.dp))
                         Box(
                             modifier = Modifier
@@ -906,6 +937,16 @@ fun promoCardRowItem(
                 }
                 Text(place, fontSize = 11.sp, color = Color.Gray)
 
+                if (isDeactivated && !deactivationJustification.isNullOrBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Motivo: $deactivationJustification",
+                        fontSize = 11.sp,
+                        color = Color(0xFFB91C1C),
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -913,14 +954,19 @@ fun promoCardRowItem(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(valuePrice, fontWeight = FontWeight.Black, color = MaterialTheme.colorScheme.primary, fontSize = 16.sp)
                     Text(
-                        text = "Ver detalhes",
+                        text = valuePrice,
+                        fontWeight = FontWeight.Black,
+                        color = if (isDeactivated) Color.Gray else MaterialTheme.colorScheme.primary,
+                        fontSize = 16.sp
+                    )
+                    Text(
+                        text = if (isDeactivated) "Encerrada" else "Ver detalhes",
                         fontSize = 11.sp,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = if (isDeactivated) Color.Gray else MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .clickable { onAction() }
+                            .clickable(enabled = !isDeactivated) { onAction() }
                             .padding(4.dp)
                     )
                 }

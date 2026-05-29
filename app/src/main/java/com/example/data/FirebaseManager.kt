@@ -503,6 +503,9 @@ object FirebaseManager {
         endDate: String,
         isPremium: Boolean,
         docId: String? = null,
+        isDeactivated: Boolean = false,
+        deactivationJustification: String? = null,
+        deactivationTimestamp: String? = null,
         onComplete: (String?) -> Unit = {}
     ) {
         val firestore = firestoreInstance ?: run { onComplete(null); return }
@@ -520,7 +523,10 @@ object FirebaseManager {
             "endDate" to endDate,
             "isFromPremiumStation" to isPremium,
             "createdAt" to timestampStr,
-            "updatedAt" to timestampStr
+            "updatedAt" to timestampStr,
+            "isDeactivated" to isDeactivated,
+            "deactivationJustification" to (deactivationJustification ?: ""),
+            "deactivationTimestamp" to (deactivationTimestamp ?: "")
         )
         val docRef = if (docId != null) {
             firestore.collection("promotions").document(docId)
@@ -536,6 +542,30 @@ object FirebaseManager {
             .addOnFailureListener { e ->
                 Log.e(TAG, "Failed syncing promotion: ${e.message}")
                 onComplete(null)
+            }
+    }
+
+    fun deactivatePromotionInFirestore(
+        docId: String,
+        justification: String,
+        timestamp: String,
+        onComplete: (Boolean) -> Unit = {}
+    ) {
+        val firestore = firestoreInstance ?: run { onComplete(false); return }
+        val updates = hashMapOf<String, Any>(
+            "isDeactivated" to true,
+            "deactivationJustification" to justification,
+            "deactivationTimestamp" to timestamp
+        )
+        firestore.collection("promotions").document(docId)
+            .update(updates)
+            .addOnSuccessListener {
+                Log.d(TAG, "Promotion $docId deactivated successfully in Firestore")
+                onComplete(true)
+            }
+            .addOnFailureListener { exception ->
+                Log.e(TAG, "Error deactivating promotion $docId: ${exception.message}", exception)
+                onComplete(false)
             }
     }
 
@@ -621,6 +651,9 @@ object FirebaseManager {
                     val endDate = doc.getString("endDate") ?: ""
                     val stationIdStr = doc.getString("stationId") ?: ""
                     val isPremium = doc.getBoolean("isFromPremiumStation") ?: true
+                    val isDeactivated = doc.getBoolean("isDeactivated") ?: false
+                    val deactivationJustification = doc.getString("deactivationJustification")
+                    val deactivationTimestamp = doc.getString("deactivationTimestamp")
                     
                     val formattedPrice = String.format("R$ %.2f", price).replace('.', ',')
                     
@@ -643,7 +676,10 @@ object FirebaseManager {
                         endDate = endDate,
                         price = price,
                         firestoreStationId = stationIdStr,
-                        docId = doc.id
+                        docId = doc.id,
+                        isDeactivated = isDeactivated,
+                        deactivationJustification = deactivationJustification,
+                        deactivationTimestamp = deactivationTimestamp
                     ))
                 }
                 onResult(list)
