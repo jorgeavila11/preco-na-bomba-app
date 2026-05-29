@@ -554,7 +554,11 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
             FirebaseManager.fetchAllStationsFromFirestore { cloudStations ->
                 if (cloudStations.isNotEmpty()) {
                     viewModelScope.launch {
-                        for (cloudStation in cloudStations) {
+                        repository.clearAllStationsLocally()
+                        val filteredStations = cloudStations.filter {
+                            it.firestoreOwnerUid == "fFM6DVVJI0eUV8jYZL7NcsoFBrf2" || it.firestoreOwnerUid == uid
+                        }
+                        for (cloudStation in filteredStations) {
                             val local = repository.getStationByEmail(cloudStation.email ?: "")
                                 ?: repository.getStationByCnpj(cloudStation.cnpj ?: "")
                             if (local == null) {
@@ -576,7 +580,10 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                         fetchPromotions()
                     }
                 } else {
-                    fetchPromotions()
+                    viewModelScope.launch {
+                        repository.clearAllStationsLocally()
+                        fetchPromotions()
+                    }
                 }
             }
         }
@@ -610,8 +617,8 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                         val isCohabPromo = pStationId.contains("cohab") || pStationName.contains("cohab") || pTitle.contains("cohab") || pDesc.contains("cohab")
                         val cohabMatch = isCohabStation && isCohabPromo
                         
-                        val matchesFuzzyName = pStationId.isNotEmpty() && (sName.contains(pStationId) || pStationId.contains(sName))
-                        val matchesFuzzyStationName = sName.contains(pStationName) || pStationName.contains(sName)
+                        val matchesFuzzyName = pStationId.isNotEmpty() && pStationId != "posto" && pStationId.length > 3 && (sName.contains(pStationId) || pStationId.contains(sName))
+                        val matchesFuzzyStationName = pStationName.isNotEmpty() && pStationName != "posto" && pStationName.length > 5 && (sName.contains(pStationName) || pStationName.contains(sName))
                         
                         matchesOwnerUid || matchesRazao || matchesEmail || matchesCnpj || cohabMatch || matchesFuzzyName || matchesFuzzyStationName
                     }

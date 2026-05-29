@@ -69,91 +69,7 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
         // Checking if stations exist, if empty, seed default stations
         val stationsList = _allStations.value
         if (stationsList.isEmpty()) {
-            _allStations.value = listOf(
-                FuelStation(
-                    id = 1,
-                    name = "Posto Shell - Av. Central",
-                    address = "Av. Central, 1200 - Centro",
-                    latitude = -23.5512,
-                    longitude = -46.6340,
-                    priceGasoline = 5.89,
-                    priceEthanol = 3.95,
-                    priceDiesel = 6.12,
-                    openHours = "Aberto 24H",
-                    brand = "Shell",
-                    distanceKm = 1.2,
-                    isFavorite = false,
-                    lastUpdatedText = "Atualizado há 15 min",
-                    cnpj = "55555555000155"
-                ),
-                FuelStation(
-                    id = 2,
-                    name = "Ipiranga - Jd. das Flores",
-                    address = "Av. das Flores, 450 - Jd. das Flores",
-                    latitude = -23.5530,
-                    longitude = -46.6322,
-                    priceGasoline = 5.98,
-                    priceEthanol = 3.85,
-                    priceDiesel = 5.99,
-                    openHours = "Aberto até 22:00",
-                    brand = "Ipiranga",
-                    distanceKm = 2.8,
-                    isFavorite = true,
-                    lastUpdatedText = "Atualizado há 1 h",
-                    cnpj = "44444444000144"
-                ),
-                FuelStation(
-                    id = 3,
-                    name = "Petrobras - BR-101",
-                    address = "Rodovia BR-101, Km 220",
-                    latitude = -23.5480,
-                    longitude = -46.6355,
-                    priceGasoline = 6.05,
-                    priceEthanol = 4.12,
-                    priceDiesel = 5.85,
-                    openHours = "Aberto 24H",
-                    brand = "Petrobras",
-                    distanceKm = 3.5,
-                    isFavorite = false,
-                    lastUpdatedText = "Atualizado há 3 h",
-                    cnpj = "33333333000133"
-                ),
-                FuelStation(
-                    id = 4,
-                    name = "Posto Shell - Marginal Tiete",
-                    address = "Av. Otaviano Alves de Lima, 1200",
-                    latitude = -23.5395,
-                    longitude = -46.6432,
-                    priceGasoline = 5.89,
-                    priceEthanol = 3.89,
-                    priceDiesel = 6.09,
-                    openHours = "Aberto",
-                    brand = "Shell",
-                    distanceKm = 4.5,
-                    isFavorite = false,
-                    lastUpdatedText = "Atualizado recentemente",
-                    cnpj = "22222222000122"
-                ),
-                FuelStation(
-                    id = 5,
-                    name = "Posto Estrela do Sul",
-                    address = "Av. das Nações, 1500 - São Paulo, SP",
-                    latitude = -23.5505,
-                    longitude = -46.6333,
-                    priceGasoline = 5.89,
-                    priceEthanol = 3.75,
-                    priceDiesel = 6.12,
-                    openHours = "24 Horas",
-                    brand = "Ipiranga",
-                    distanceKm = 1.8,
-                    isFavorite = true,
-                    isPartner = true,
-                    lastUpdatedText = "Atualizado há 10 min",
-                    cnpj = "12345678000199",
-                    email = "contato@estreladosul.com.br",
-                    phone = "(11) 98765-4321"
-                )
-            )
+            _allStations.value = emptyList()
         }
 
         // Checking if refueling logs exist, if empty, seed default logs
@@ -189,6 +105,10 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
     }
 
     // Helper functions
+    suspend fun clearAllStationsLocally() {
+        _allStations.value = emptyList()
+    }
+
     suspend fun updateStation(station: FuelStation) {
         _allStations.update { list ->
             list.map { if (it.id == station.id || (station.cnpj != null && it.cnpj == station.cnpj)) station else it }
