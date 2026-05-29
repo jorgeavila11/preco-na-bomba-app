@@ -90,7 +90,8 @@ object FirebaseManager {
                         vehiclePlate = document.getString("vehiclePlate") ?: "",
                         averageConsumption = document.getDouble("averageConsumption") ?: 12.0,
                         fuelType = document.getString("fuelType") ?: "Flex",
-                        isPremium = document.getBoolean("isPremium") ?: false
+                        isPremium = document.getBoolean("isPremium") ?: false,
+                        address = document.getString("address") ?: ""
                     )
                     onResult(profile, role)
                 } else {
@@ -120,6 +121,7 @@ object FirebaseManager {
                     val email = document.getString("email") ?: ""
                     val phone = document.getString("phone") ?: ""
                     val razaoSocial = document.getString("razaoSocial") ?: ""
+                    val hasEvCharger = document.getBoolean("hasEvCharger") ?: false
                     
                     // Parse location
                     val locationMap = document.get("location") as? Map<*, *>
@@ -152,7 +154,8 @@ object FirebaseManager {
                         email = email,
                         phone = phone,
                         razaoSocial = razaoSocial,
-                        firestoreOwnerUid = uid
+                        firestoreOwnerUid = uid,
+                        hasEvCharger = hasEvCharger
                     )
                     onResult(station)
                 } else {
@@ -241,6 +244,7 @@ object FirebaseManager {
                     "fuelType" to profile.fuelType,
                     "isPremium" to profile.isPremium,
                     "role" to "driver",
+                    "address" to profile.address,
                     "uid" to uid
                 )
 
@@ -443,7 +447,8 @@ object FirebaseManager {
                     "email" to (station.email ?: ""),
                     "phone" to (station.phone ?: ""),
                     "razaoSocial" to (station.razaoSocial ?: ""),
-                    "isPremium" to true
+                    "isPremium" to true,
+                    "hasEvCharger" to station.hasEvCharger
                 )
 
                 firestore.collection("stations").document(targetUid)
@@ -479,7 +484,8 @@ object FirebaseManager {
                 "email" to (station.email ?: ""),
                 "phone" to (station.phone ?: ""),
                 "razaoSocial" to (station.razaoSocial ?: ""),
-                "ownerUid" to (if (isMyStation) currentUid else "")
+                "ownerUid" to (if (isMyStation) currentUid else ""),
+                "hasEvCharger" to station.hasEvCharger
             )
 
             firestore.collection("stations").document(docId)
@@ -587,6 +593,7 @@ object FirebaseManager {
                     val email = doc.getString("email") ?: ""
                     val phone = doc.getString("phone") ?: ""
                     val razaoSocial = doc.getString("razaoSocial") ?: ""
+                    val hasEvCharger = doc.getBoolean("hasEvCharger") ?: false
                     val uid = doc.id
                     
                     val locationMap = doc.get("location") as? Map<*, *>
@@ -620,7 +627,8 @@ object FirebaseManager {
                         email = email,
                         phone = phone,
                         razaoSocial = razaoSocial,
-                        firestoreOwnerUid = uid
+                        firestoreOwnerUid = uid,
+                        hasEvCharger = hasEvCharger
                     )
                     list.add(station)
                 }

@@ -33,7 +33,8 @@ data class FuelStation(
     val email: String? = null,
     val phone: String? = null,
     val razaoSocial: String? = null,
-    val firestoreOwnerUid: String? = null
+    val firestoreOwnerUid: String? = null,
+    val hasEvCharger: Boolean = false
 )
 
 // 2. Refueling Log Entity - History of fuelings logged by the driver
@@ -58,7 +59,8 @@ data class DriverProfile(
     val vehiclePlate: String,
     val averageConsumption: Double,
     val fuelType: String = "Flex", // Flex, Gasolina, Alcohol, Diesel
-    val isPremium: Boolean = false
+    val isPremium: Boolean = false,
+    val address: String = ""
 )
 
 // DAOs (Data Access Objects)
@@ -113,7 +115,7 @@ interface PrecoNaBombaDao {
 // AppDatabase definition
 @Database(
     entities = [FuelStation::class, Refueling::class, DriverProfile::class],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class PrecoNaBombaDatabase : RoomDatabase() {

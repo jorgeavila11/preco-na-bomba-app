@@ -72,6 +72,7 @@ fun MainStationHome(
     val gasPrice by viewModel.editGasolinePrice.collectAsState()
     val ethPrice by viewModel.editEthanolPrice.collectAsState()
     val dslPrice by viewModel.editDieselPrice.collectAsState()
+    val hasEvCharger by viewModel.editStationHasEvCharger.collectAsState()
 
     val promos by viewModel.promoList.collectAsState()
 
@@ -410,6 +411,48 @@ fun MainStationHome(
                                 onValueChange = { viewModel.editDieselPrice.value = it }
                             )
                         }
+                    }
+                }
+
+                // EV Charging spot block
+                Card(
+                    modifier = Modifier.fillMaxWidth().testTag("ev_charger_toggle_card"),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = null,
+                                tint = Color(0xFF10B981),
+                                modifier = Modifier.size(24.dp)
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Column {
+                                Text("⚡ PONTO DE RECARGA ELÉTRICA", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
+                                Text("Posto tem local para recarregar carros elétricos", fontSize = 11.sp, color = Color.LightGray)
+                            }
+                        }
+
+                        Switch(
+                            checked = hasEvCharger,
+                            onCheckedChange = { viewModel.editStationHasEvCharger.value = it },
+                            modifier = Modifier.testTag("ev_charger_switch"),
+                            colors = SwitchDefaults.colors(
+                                checkedThumbColor = Color.White,
+                                checkedTrackColor = Color(0xFF10B981)
+                            )
+                        )
                     }
                 }
             }

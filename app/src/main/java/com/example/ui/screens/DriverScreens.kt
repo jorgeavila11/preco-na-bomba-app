@@ -421,6 +421,7 @@ fun MainDriverHome(
             "Gasolina" -> list = list.sortedBy { it.priceGasoline }
             "Etanol" -> list = list.sortedBy { it.priceEthanol }
             "Diesel" -> list = list.sortedBy { it.priceDiesel }
+            "Carro Elétrico" -> list = list.filter { it.hasEvCharger }
             "Menor Preço" -> list = list.sortedBy { minOf(it.priceGasoline, it.priceEthanol) }
             "Mais Próximo" -> list = list.sortedBy { it.distanceKm }
         }
@@ -519,7 +520,7 @@ fun MainDriverHome(
                 )
 
                 // Filter Rows
-                val filterOptions = listOf("Gasolina", "Etanol", "Diesel", "Menor Preço", "Mais Próximo")
+                val filterOptions = listOf("Gasolina", "Etanol", "Diesel", "Carro Elétrico", "Menor Preço", "Mais Próximo")
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -761,6 +762,27 @@ fun StationCardItem(
                                 fontSize = 10.sp,
                                 fontWeight = FontWeight.Black,
                                 color = Color(0xFFD97706) // Yellow Gold
+                            )
+                        }
+                    }
+
+                    if (station.hasEvCharger) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.padding(top = 2.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Info,
+                                contentDescription = "Ponto de Recarga de Carro Elétrico",
+                                tint = Color(0xFF10B981), // Green
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text(
+                                text = "⚡ RECARGA ELÉTRICA",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF059669) // Green text
                             )
                         }
                     }
@@ -1976,11 +1998,221 @@ fun DriverProfileArea(
     val currentProfile by viewModel.profile.collectAsState()
     val context = LocalContext.current
 
+    var isEditProfileOpen by remember { mutableStateOf(false) }
+
+    var editName by remember(currentProfile) { mutableStateOf(currentProfile?.name ?: "") }
+    var editEmail by remember(currentProfile) { mutableStateOf(currentProfile?.email ?: "") }
+    var editPhone by remember(currentProfile) { mutableStateOf(currentProfile?.phone ?: "") }
+    var editAddress by remember(currentProfile) { mutableStateOf(currentProfile?.address ?: "") }
+    var editVehicleModel by remember(currentProfile) { mutableStateOf(currentProfile?.vehicleModel ?: "") }
+    var editVehiclePlate by remember(currentProfile) { mutableStateOf(currentProfile?.vehiclePlate ?: "") }
+    var editAverageConsumption by remember(currentProfile) { mutableStateOf(currentProfile?.averageConsumption?.toString() ?: "12.0") }
+    var editFuelType by remember(currentProfile) { mutableStateOf(currentProfile?.fuelType ?: "Flex") }
+
+    if (isEditProfileOpen) {
+        AlertDialog(
+            onDismissRequest = { isEditProfileOpen = false },
+            title = {
+                Text(
+                    text = "Editar Perfil",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "Atualize suas informações pessoais e dados do veículo abaixo:",
+                        fontSize = 13.sp,
+                        color = Color(0xFF475569)
+                    )
+
+                    // Nome
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("NOME", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        OutlinedTextField(
+                            value = editName,
+                            onValueChange = { editName = it },
+                            placeholder = { Text("Nome completo") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_profile_name"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    // E-mail
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("E-MAIL", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        OutlinedTextField(
+                            value = editEmail,
+                            onValueChange = { editEmail = it },
+                            placeholder = { Text("email@exemplo.com") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_profile_email"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    // Telefone
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("TELEFONE", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        OutlinedTextField(
+                            value = editPhone,
+                            onValueChange = { editPhone = it },
+                            placeholder = { Text("(11) 98765-4321") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_profile_phone"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    // Endereço
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("ENDEREÇO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        OutlinedTextField(
+                            value = editAddress,
+                            onValueChange = { editAddress = it },
+                            placeholder = { Text("Ex: São Paulo, SP ou Av. Paulista, 1000") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_profile_address"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = Color(0xFFE2E8F0))
+                    Text("DADOS DO VEÍCULO", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+
+                    // Modelo do Veículo
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("MODELO DO VEÍCULO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        OutlinedTextField(
+                            value = editVehicleModel,
+                            onValueChange = { editVehicleModel = it },
+                            placeholder = { Text("Ex: Toyota Corolla") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_profile_vehicle_model"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    // Placa do Veículo
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("PLACA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        OutlinedTextField(
+                            value = editVehiclePlate,
+                            onValueChange = { editVehiclePlate = it },
+                            placeholder = { Text("Ex: ABC-1234") },
+                            modifier = Modifier.fillMaxWidth().testTag("edit_profile_vehicle_plate"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    // Consumo Médio
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("CONSUMO MÉDIO (km/L)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        OutlinedTextField(
+                            value = editAverageConsumption,
+                            onValueChange = { editAverageConsumption = it },
+                            placeholder = { Text("Ex: 12.0") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                            modifier = Modifier.fillMaxWidth().testTag("edit_profile_avg_consumption"),
+                            shape = RoundedCornerShape(12.dp)
+                        )
+                    }
+
+                    // Tipo de Combustível Principal
+                    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Text("TIPO DE COMBUSTÍVEL PRINCIPAL", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
+                        var isFuelDropdownExpanded by remember { mutableStateOf(false) }
+                        val fuelOptions = listOf("Flex", "Gasolina", "Etanol", "Diesel")
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .border(1.dp, Color(0xFFCBD5E1), RoundedCornerShape(12.dp))
+                                .clickable { isFuelDropdownExpanded = true }
+                                .padding(horizontal = 14.dp),
+                            contentAlignment = Alignment.CenterStart
+                        ) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(editFuelType, color = Color(0xFF1E293B), fontSize = 15.sp)
+                                Icon(
+                                    imageVector = Icons.Default.KeyboardArrowDown,
+                                    contentDescription = null,
+                                    tint = Color(0xFF64748B)
+                                )
+                            }
+                            DropdownMenu(
+                                expanded = isFuelDropdownExpanded,
+                                onDismissRequest = { isFuelDropdownExpanded = false }
+                            ) {
+                                fuelOptions.forEach { opt ->
+                                    DropdownMenuItem(
+                                        text = { Text(opt) },
+                                        onClick = {
+                                            editFuelType = opt
+                                            isFuelDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val consumptionVal = editAverageConsumption.replace(',', '.').toDoubleOrNull() ?: 12.0
+                        if (editName.isBlank() || editEmail.isBlank()) {
+                            Toast.makeText(context, "Nome e E-mail são obrigatórios.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            viewModel.updateDriverProfile(
+                                name = editName.trim(),
+                                email = editEmail.trim(),
+                                phone = editPhone.trim(),
+                                address = editAddress.trim(),
+                                vehicleModel = editVehicleModel.trim(),
+                                vehiclePlate = editVehiclePlate.trim(),
+                                averageConsumption = consumptionVal,
+                                fuelType = editFuelType
+                            )
+                            Toast.makeText(context, "Informações do perfil atualizadas!", Toast.LENGTH_SHORT).show()
+                            isEditProfileOpen = false
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary),
+                    shape = RoundedCornerShape(10.dp),
+                    modifier = Modifier.testTag("submit_edit_profile_button")
+                ) {
+                    Text("Salvar Perfil", color = Color.White, fontSize = 13.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { isEditProfileOpen = false }
+                ) {
+                    Text("Cancelar", color = Color(0xFF64748B), fontSize = 13.sp)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
                 title = { Text("Meu Perfil", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
                 actions = {
+                    IconButton(onClick = { isEditProfileOpen = true }, modifier = Modifier.testTag("driver_profile_edit_topbar_button")) {
+                        Icon(Icons.Default.Edit, contentDescription = "Editar Perfil", tint = MaterialTheme.colorScheme.primary)
+                    }
                     IconButton(onClick = { Toast.makeText(context, "Sem novas notificações", Toast.LENGTH_SHORT).show() }) {
                         Icon(Icons.Default.Notifications, null)
                     }
@@ -2008,55 +2240,69 @@ fun DriverProfileArea(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                // Avatar representation
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape)
-                        .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Person,
-                        contentDescription = "Avatar",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(48.dp)
-                    )
-                }
-
-                Spacer(modifier = Modifier.width(16.dp))
-
-                Column {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = currentProfile?.name ?: "João Silva",
-                            fontSize = 20.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.Black
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Avatar representation
+                    Box(
+                        modifier = Modifier
+                            .size(80.dp)
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f), CircleShape)
+                            .border(2.dp, MaterialTheme.colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Person,
+                            contentDescription = "Avatar",
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(48.dp)
                         )
-                        if (currentProfile?.isPremium == true) {
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Box(
-                                modifier = Modifier
-                                    .background(Color(0xFFFFFBEB), RoundedCornerShape(8.dp))
-                                    .border(1.dp, Color(0xFFFDE047), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 8.dp, vertical = 4.dp)
-                            ) {
-                                Text(
-                                    text = "Premium",
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Black,
-                                    color = Color(0xFFD97706)
-                                )
+                    }
+
+                    Spacer(modifier = Modifier.width(16.dp))
+
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = currentProfile?.name ?: "João Silva",
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.Black
+                            )
+                            if (currentProfile?.isPremium == true) {
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .background(Color(0xFFFFFBEB), RoundedCornerShape(8.dp))
+                                        .border(1.dp, Color(0xFFFDE047), RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Premium",
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Black,
+                                        color = Color(0xFFD97706)
+                                    )
+                                }
                             }
                         }
+                        Text(
+                            text = if (!currentProfile?.address.isNullOrBlank()) currentProfile?.address!! else "São Paulo, SP",
+                            fontSize = 13.sp,
+                            color = Color.Gray
+                        )
                     }
-                    Text(
-                        text = "São Paulo, SP",
-                        fontSize = 14.sp,
-                        color = Color.Gray
+                }
+
+                IconButton(
+                    onClick = { isEditProfileOpen = true },
+                    modifier = Modifier.testTag("driver_edit_profile_shortcut_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Edit,
+                        contentDescription = "Editar Perfil",
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -2066,7 +2312,7 @@ fun DriverProfileArea(
                 modifier = Modifier.fillMaxWidth(),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(15.dp)) {
                     Text("INFORMAÇÕES PESSOAIS", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Gray)
 
                     // Email block
@@ -2086,6 +2332,16 @@ fun DriverProfileArea(
                         Column {
                             Text("Telefone", fontSize = 11.sp, color = Color.Gray)
                             Text(currentProfile?.phone ?: "(11) 98765-4321", fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+
+                    // Address block
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(Icons.Default.LocationOn, null, tint = MaterialTheme.colorScheme.primary)
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Column {
+                            Text("Endereço", fontSize = 11.sp, color = Color.Gray)
+                            Text(currentProfile?.address ?: "Não cadastrado", fontSize = 14.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }

@@ -291,6 +291,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     val editStationBrand = MutableStateFlow("Petrobras")
     val editStationPhone = MutableStateFlow("(11) 98765-4321")
     val editStationEmail = MutableStateFlow("contato@estreladosul.com.br")
+    val editStationHasEvCharger = MutableStateFlow(false)
 
     val saveState = MutableStateFlow(StationSaveState.IDLE)
 
@@ -674,6 +675,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                     editStationEmail.value = activeStation.email ?: ""
                     editStationPhone.value = activeStation.phone ?: ""
                     editStationRazao.value = activeStation.razaoSocial ?: ""
+                    editStationHasEvCharger.value = activeStation.hasEvCharger
                     ownerStationPlan.value = if (activeStation.isPartner) "Conta Premium" else "Conta Pro"
                 }
             }.collect {}
@@ -1136,7 +1138,8 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                         lastUpdatedTimestamp = System.currentTimeMillis(),
                         email = editStationEmail.value,
                         phone = editStationPhone.value,
-                        razaoSocial = editStationRazao.value
+                        razaoSocial = editStationRazao.value,
+                        hasEvCharger = editStationHasEvCharger.value
                     )
                 )
             }
@@ -1163,6 +1166,37 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
                 )
                 // Safely update basic owner name & email inside users collection in Firestore without driver tags
                 FirebaseManager.syncStationOwnerProfileToFirestore(name, email)
+            }
+        }
+    }
+
+    // Driver: Save detailed profile info edits
+    fun updateDriverProfile(
+        name: String,
+        email: String,
+        phone: String,
+        address: String,
+        vehicleModel: String,
+        vehiclePlate: String,
+        averageConsumption: Double,
+        fuelType: String
+    ) {
+        viewModelScope.launch {
+            val current = repository.profile.first()
+            if (current != null) {
+                repository.updateProfile(
+                    current.copy(
+                        name = name,
+                        email = email,
+                        phone = phone,
+                        address = address,
+                        vehicleModel = vehicleModel,
+                        vehiclePlate = vehiclePlate,
+                        averageConsumption = averageConsumption,
+                        fuelType = fuelType
+                    ),
+                    syncToFirestore = true
+                )
             }
         }
     }
