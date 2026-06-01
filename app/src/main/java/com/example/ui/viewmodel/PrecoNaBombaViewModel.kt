@@ -35,7 +35,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     private var varLastFetchLng = 0.0
 
     // Main Navigation state
-    private val _currentScreen = MutableStateFlow<Screen>(Screen.OnboardingRoleSelection)
+    private val _currentScreen = MutableStateFlow<Screen>(Screen.UserLogin)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
     // Driver GPS Geolocation state
