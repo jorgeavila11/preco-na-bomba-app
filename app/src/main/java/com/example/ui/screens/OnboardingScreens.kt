@@ -861,13 +861,13 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Logo Header Section
             Box(
                 modifier = Modifier
-                    .size(80.dp)
-                    .clip(RoundedCornerShape(24.dp))
+                    .size(64.dp)
+                    .clip(RoundedCornerShape(20.dp))
                     .background(
                         Brush.linearGradient(
                             colors = listOf(
@@ -882,15 +882,15 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                     imageVector = Icons.Default.LocationOn,
                     contentDescription = "Preço na Bomba",
                     tint = Color.White,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(36.dp)
                 )
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             Text(
                 text = "Preço na Bomba",
-                fontSize = 28.sp,
+                fontSize = 24.sp,
                 fontWeight = FontWeight.ExtraBold,
                 color = Color(0xFF00327D),
                 letterSpacing = (-0.5).sp
@@ -898,14 +898,14 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
 
             Text(
                 text = "Economize em cada quilômetro.",
-                fontSize = 15.sp,
+                fontSize = 14.sp,
                 fontWeight = FontWeight.Medium,
                 color = TextColVariant,
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(top = 4.dp)
             )
 
-            Spacer(modifier = Modifier.height(32.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             // Custom M3 Card
             Card(
@@ -1128,34 +1128,34 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                             )
                         }
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    // Footer Cadastre-se Option
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "Não tem uma conta? ",
+                            fontSize = 14.sp,
+                            color = TextColVariant
+                        )
+                        Text(
+                            text = "Cadastre-se",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF00327D),
+                            modifier = Modifier
+                                .clickable { viewModel.navigateTo(Screen.OnboardingRoleSelection) }
+                                .testTag("login_go_to_register")
+                        )
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Footer Cadastre-se Option
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(bottom = 32.dp),
-                horizontalArrangement = Arrangement.Center,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Não tem uma conta? ",
-                    fontSize = 14.sp,
-                    color = TextColVariant
-                )
-                Text(
-                    text = "Cadastre-se",
-                    fontSize = 14.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF00327D),
-                    modifier = Modifier
-                        .clickable { viewModel.navigateTo(Screen.OnboardingRoleSelection) }
-                        .testTag("login_go_to_register")
-                )
-            }
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
