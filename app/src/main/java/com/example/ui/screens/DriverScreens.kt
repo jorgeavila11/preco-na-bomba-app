@@ -45,6 +45,7 @@ import com.example.ui.viewmodel.PromoItem
 import com.example.ui.theme.*
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.PopupProperties
 import com.example.ui.viewmodel.PrecoNaBombaViewModel
 import com.example.ui.viewmodel.Screen
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -2508,17 +2509,17 @@ fun DriverPrivateArea(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Área do Motorista", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = { viewModel.navigateTo(Screen.DriverProfileArea) }) {
-                        Icon(Icons.Default.ArrowBack, null)
+                title = { Text("Histórico de Abastecimentos", fontSize = 18.sp, fontWeight = FontWeight.Bold) },
+                actions = {
+                    IconButton(onClick = { isLogDialogOpen = true }) {
+                        Icon(Icons.Default.Add, contentDescription = "Registrar Abastecimento", tint = MaterialTheme.colorScheme.primary)
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(containerColor = Color.White)
             )
         },
         bottomBar = {
-            DriverBottomNavigationBar(Screen.DriverProfileArea) { screen ->
+            DriverBottomNavigationBar(Screen.DriverPrivateArea) { screen ->
                 viewModel.navigateTo(screen)
             }
         },
@@ -2534,7 +2535,7 @@ fun DriverPrivateArea(
             Card(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(16.dp),
+                    .padding(horizontal = 16.dp, vertical = 10.dp),
                 shape = RoundedCornerShape(16.dp),
                 colors = CardDefaults.cardColors(containerColor = Color.White)
             ) {
@@ -2546,28 +2547,79 @@ fun DriverPrivateArea(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Column {
-                        Text(currentProfile?.vehicleModel ?: "Toyota Corolla", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                        Text("Placa: ${currentProfile?.vehiclePlate ?: "ABC-1234"}", fontSize = 13.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
+                        Text(currentProfile?.vehicleModel ?: "Toyota Corolla", fontSize = 17.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                        Text("Placa: ${currentProfile?.vehiclePlate ?: "ABC-1234"}", fontSize = 12.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
                         Row(
                             verticalAlignment = Alignment.CenterVertically,
                             modifier = Modifier.padding(top = 6.dp)
                         ) {
-                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(16.dp))
+                            Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(15.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("Consumo Médio: 12km/L", fontSize = 13.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                            Text("Consumo Médio: 12km/L", fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
                         }
                     }
 
                     Box(
                         modifier = Modifier
-                            .size(72.dp)
+                            .size(60.dp)
                             .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.05f), RoundedCornerShape(8.dp)),
                         contentAlignment = Alignment.Center
                     ) {
-                        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(36.dp))
+                        Icon(Icons.Default.Person, null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(32.dp))
                     }
                 }
             }
+
+            // Campaign/Draw Promo Banner to engage users in updating gas station prices
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 16.dp, vertical = 6.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = CardDefaults.cardColors(
+                    containerColor = Color(0xFFF0F7FF)
+                ),
+                border = BorderStroke(1.dp, Color(0xFFD2E5FF))
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(Color(0xFFD2E6FF), CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Star,
+                            contentDescription = "Prêmios",
+                            tint = Color(0xFF0056C6),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "Abasteça e Ganhe Prêmios! 🏆",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0049AC)
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = "Cadastre seus cupons de abastecimento para concorrer a prêmios semanais! Atualizar preços dos postos dobra suas chances.",
+                            fontSize = 11.sp,
+                            color = Color(0xFF335C94),
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(10.dp))
 
             // Inform New Price CTA
             Button(
@@ -2575,7 +2627,7 @@ fun DriverPrivateArea(
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
-                    .height(54.dp)
+                    .height(50.dp)
                     .testTag("driver_add_refueling_cta"),
                 shape = RoundedCornerShape(12.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
@@ -2583,23 +2635,23 @@ fun DriverPrivateArea(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(Icons.Default.Add, null, tint = Color.White)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("Informar Novo Preço", fontWeight = FontWeight.Bold, color = Color.White)
+                    Text("Informar Novo Preço", fontWeight = FontWeight.Bold, color = Color.White, fontSize = 15.sp)
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
             // Transaction log head
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 20.dp, vertical = 8.dp),
+                    .padding(horizontal = 20.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
                     text = "Histórico de Abastecimentos",
-                    fontSize = 16.sp,
+                    fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
@@ -2647,7 +2699,7 @@ fun DriverPrivateArea(
                                         .background(MaterialTheme.colorScheme.background, RoundedCornerShape(8.dp)),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Icon(Icons.Default.Info, null, tint = MaterialTheme.colorScheme.primary)
+                                    Icon(Icons.Default.List, null, tint = MaterialTheme.colorScheme.primary)
                                 }
 
                                 Spacer(modifier = Modifier.width(16.dp))
@@ -2684,6 +2736,20 @@ fun DriverPrivateArea(
         var inputStation by remember { mutableStateOf("") }
         var inputLiters by remember { mutableStateOf("") }
         var inputPrice by remember { mutableStateOf("") }
+        var isDropdownExpanded by remember { mutableStateOf(false) }
+
+        val allStations by viewModel.allStations.collectAsState()
+        val suggestions = remember(inputStation, allStations) {
+            if (inputStation.trim().isEmpty()) {
+                emptyList()
+            } else {
+                allStations
+                    .map { it.name }
+                    .distinct()
+                    .filter { it.contains(inputStation, ignoreCase = true) && !it.equals(inputStation, ignoreCase = true) }
+                    .take(5)
+            }
+        }
 
         AlertDialog(
             onDismissRequest = { isLogDialogOpen = false },
@@ -2713,13 +2779,47 @@ fun DriverPrivateArea(
             },
             title = { Text("Registrar Preço na Bomba", fontWeight = FontWeight.Bold) },
             text = {
-                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    OutlinedTextField(
-                        value = inputStation,
-                        onValueChange = { inputStation = it },
-                        label = { Text("Nome do Posto") },
-                        modifier = Modifier.fillMaxWidth()
-                    )
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = inputStation,
+                            onValueChange = {
+                                inputStation = it
+                                isDropdownExpanded = true
+                            },
+                            label = { Text("Nome do Posto") },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                if (inputStation.isNotEmpty()) {
+                                    IconButton(onClick = { inputStation = "" }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Limpar")
+                                    }
+                                }
+                            }
+                        )
+                        if (suggestions.isNotEmpty() && isDropdownExpanded) {
+                            DropdownMenu(
+                                expanded = isDropdownExpanded,
+                                onDismissRequest = { isDropdownExpanded = false },
+                                properties = PopupProperties(focusable = false),
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            ) {
+                                suggestions.forEach { suggestion ->
+                                    DropdownMenuItem(
+                                        text = { Text(suggestion, fontSize = 14.sp, fontWeight = FontWeight.Medium) },
+                                        onClick = {
+                                            inputStation = suggestion
+                                            isDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
                     OutlinedTextField(
                         value = inputLiters,
                         onValueChange = { inputLiters = it },
@@ -2768,6 +2868,13 @@ fun DriverBottomNavigationBar(
             onClick = { onTabSelected(Screen.PremiumPromotions) },
             icon = { Icon(Icons.Default.Star, null) },
             label = { Text("Promoções", fontSize = 10.sp) }
+        )
+
+        NavigationBarItem(
+            selected = currentScreen == Screen.DriverPrivateArea,
+            onClick = { onTabSelected(Screen.DriverPrivateArea) },
+            icon = { Icon(Icons.Default.List, null) },
+            label = { Text("Histórico", fontSize = 10.sp) }
         )
 
         NavigationBarItem(
