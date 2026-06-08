@@ -2505,6 +2505,9 @@ fun DriverPrivateArea(
     val refuelingLogs by viewModel.allRefuelings.collectAsState()
     val context = LocalContext.current
     var isLogDialogOpen by remember { mutableStateOf(false) }
+    var selectedRefuelingToEdit by remember { mutableStateOf<Refueling?>(null) }
+    var showEditDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirmDialog by remember { mutableStateOf<Refueling?>(null) }
 
     Scaffold(
         topBar = {
@@ -2707,10 +2710,25 @@ fun DriverPrivateArea(
                                 Column(modifier = Modifier.weight(1f)) {
                                     Row(
                                         modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(log.stationName, fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
-                                        Text(String.format("R$ %.2f", log.totalPaid), fontWeight = FontWeight.Bold, fontSize = 15.sp, color = Color.Black)
+                                        Text(
+                                            text = log.stationName,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color.Black,
+                                            modifier = Modifier.weight(1f),
+                                            maxLines = 1,
+                                            overflow = TextOverflow.Ellipsis
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = String.format(java.util.Locale.US, "R$ %.2f", log.totalPaid).replace(".", ","),
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color.Black
+                                        )
                                     }
                                     Text(log.date, fontSize = 11.sp, color = Color.Gray, modifier = Modifier.padding(top = 2.dp))
                                     Row(
@@ -2718,9 +2736,47 @@ fun DriverPrivateArea(
                                         modifier = Modifier.padding(top = 4.dp),
                                         horizontalArrangement = Arrangement.spacedBy(16.dp)
                                     ) {
-                                        Text("${log.liters} L", fontSize = 12.sp, color = Color.Gray)
+                                        val formattedLiters = String.format(java.util.Locale.US, "%.2f", log.liters).replace(".", ",")
+                                        val formattedPrice = String.format(java.util.Locale.US, "R$ %.2f/L", log.pricePerLiter).replace(".", ",")
+                                        Text("$formattedLiters L", fontSize = 12.sp, color = Color.Gray)
                                         Text("|", fontSize = 12.sp, color = Color.LightGray)
-                                        Text(String.format("R$ %.2f/L", log.pricePerLiter), fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                        Text(formattedPrice, fontSize = 12.sp, color = MaterialTheme.colorScheme.primary, fontWeight = FontWeight.Bold)
+                                    }
+                                }
+
+                                Spacer(modifier = Modifier.width(8.dp))
+
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                ) {
+                                    IconButton(
+                                        onClick = {
+                                            selectedRefuelingToEdit = log
+                                            showEditDialog = true
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Edit,
+                                            contentDescription = "Editar",
+                                            tint = Color.Gray,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+
+                                    IconButton(
+                                        onClick = {
+                                            showDeleteConfirmDialog = log
+                                        },
+                                        modifier = Modifier.size(32.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Default.Delete,
+                                            contentDescription = "Excluir",
+                                            tint = Color(0xFFEF4444),
+                                            modifier = Modifier.size(18.dp)
+                                        )
                                     }
                                 }
                             }
@@ -2835,6 +2891,155 @@ fun DriverPrivateArea(
                         modifier = Modifier.fillMaxWidth()
                     )
                 }
+            }
+        )
+    }
+
+    // Refueling Editor Trigger Dialog popup
+    if (showEditDialog && selectedRefuelingToEdit != null) {
+        val refueling = selectedRefuelingToEdit!!
+        var editStation by remember { mutableStateOf(refueling.stationName) }
+        var editLiters by remember { mutableStateOf(String.format(java.util.Locale.US, "%.2f", refueling.liters).replace(".", ",")) }
+        var editPrice by remember { mutableStateOf(String.format(java.util.Locale.US, "%.2f", refueling.pricePerLiter).replace(".", ",")) }
+        var isDropdownExpanded by remember { mutableStateOf(false) }
+
+        val allStations by viewModel.allStations.collectAsState()
+        val suggestions = remember(editStation, allStations) {
+            if (editStation.trim().isEmpty()) {
+                emptyList()
+            } else {
+                allStations
+                    .map { it.name }
+                    .distinct()
+                    .filter { it.contains(editStation, ignoreCase = true) && !it.equals(editStation, ignoreCase = true) }
+                    .take(5)
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { 
+                showEditDialog = false
+                selectedRefuelingToEdit = null
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val litStr = editLiters.trim().replace(",", ".")
+                        val priceStr = editPrice.trim().replace(",", ".")
+                        val lit = litStr.toDoubleOrNull()
+                        val price = priceStr.toDoubleOrNull()
+                        if (editStation.isNotBlank() && lit != null && price != null) {
+                            viewModel.updateRefueling(refueling, editStation, lit, price)
+                            showEditDialog = false
+                            selectedRefuelingToEdit = null
+                            Toast.makeText(context, "Abastecimento atualizado!", Toast.LENGTH_SHORT).show()
+                        } else {
+                            Toast.makeText(context, "Por favor, preencha todos os campos corretamente.", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                ) {
+                    Text("Salvar")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = { 
+                        showEditDialog = false
+                        selectedRefuelingToEdit = null
+                    }
+                ) {
+                    Text("Cancelar")
+                }
+            },
+            title = { Text("Editar Abastecimento", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedTextField(
+                            value = editStation,
+                            onValueChange = {
+                                editStation = it
+                                isDropdownExpanded = true
+                            },
+                            label = { Text("Nome do Posto") },
+                            modifier = Modifier.fillMaxWidth(),
+                            trailingIcon = {
+                                if (editStation.isNotEmpty()) {
+                                    IconButton(onClick = { editStation = "" }) {
+                                        Icon(Icons.Default.Close, contentDescription = "Limpar")
+                                    }
+                                }
+                            }
+                        )
+                        if (suggestions.isNotEmpty() && isDropdownExpanded) {
+                            DropdownMenu(
+                                expanded = isDropdownExpanded,
+                                onDismissRequest = { isDropdownExpanded = false },
+                                properties = PopupProperties(focusable = false),
+                                modifier = Modifier.fillMaxWidth(0.9f)
+                            ) {
+                                suggestions.forEach { suggestion ->
+                                    DropdownMenuItem(
+                                        text = { Text(suggestion, fontSize = 14.sp, fontWeight = FontWeight.Medium) },
+                                        onClick = {
+                                            editStation = suggestion
+                                            isDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = editLiters,
+                        onValueChange = { editLiters = it },
+                        label = { Text("Litros") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    OutlinedTextField(
+                        value = editPrice,
+                        onValueChange = { editPrice = it },
+                        label = { Text("Preço por Livro (R$)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        )
+    }
+
+    // Delete Refueling Confirmation Dialog popup
+    if (showDeleteConfirmDialog != null) {
+        val refueling = showDeleteConfirmDialog!!
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirmDialog = null },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.deleteRefueling(refueling)
+                        showDeleteConfirmDialog = null
+                        Toast.makeText(context, "Abastecimento excluído!", Toast.LENGTH_SHORT).show()
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Excluir", color = Color.White)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirmDialog = null }) {
+                    Text("Cancelar")
+                }
+            },
+            title = { Text("Excluir Abastecimento", fontWeight = FontWeight.Bold) },
+            text = {
+                val formattedTotal = String.format(java.util.Locale.US, "%.2f", refueling.totalPaid).replace(".", ",")
+                Text("Deseja realmente excluir o abastecimento de ${refueling.stationName} no valor de R$ $formattedTotal?")
             }
         )
     }

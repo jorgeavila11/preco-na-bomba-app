@@ -75,32 +75,7 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
         // Checking if refueling logs exist, if empty, seed default logs
         val refuelingList = _allRefuelings.value
         if (refuelingList.isEmpty()) {
-            _allRefuelings.value = listOf(
-                Refueling(
-                    id = 1,
-                    stationName = "Posto Shell Central",
-                    date = "15/10/2023 • 14:30",
-                    liters = 45.45,
-                    pricePerLiter = 5.50,
-                    totalPaid = 250.00
-                ),
-                Refueling(
-                    id = 2,
-                    stationName = "Ipiranga Marginal",
-                    date = "02/10/2023 • 09:15",
-                    liters = 32.10,
-                    pricePerLiter = 5.78,
-                    totalPaid = 185.50
-                ),
-                Refueling(
-                    id = 3,
-                    stationName = "Posto Petrobras Av. 1",
-                    date = "20/09/2023 • 18:45",
-                    liters = 40.00,
-                    pricePerLiter = 5.25,
-                    totalPaid = 210.00
-                )
-            )
+            _allRefuelings.value = emptyList()
         }
     }
 
@@ -162,6 +137,18 @@ class PrecoNaBombaRepository(private val dao: PrecoNaBombaDao) {
                 val nextId = (list.maxOfOrNull { it.id } ?: 0) + 1
                 list + refueling.copy(id = nextId)
             }
+        }
+    }
+
+    suspend fun deleteRefueling(refueling: Refueling) {
+        _allRefuelings.update { list ->
+            list.filterNot { it.id == refueling.id }
+        }
+    }
+
+    suspend fun updateRefueling(refueling: Refueling) {
+        _allRefuelings.update { list ->
+            list.map { if (it.id == refueling.id) refueling else it }
         }
     }
 

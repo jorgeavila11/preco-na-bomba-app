@@ -1085,8 +1085,8 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     // Driver: Log refueling and dynamically append to transaction records
     fun saveRefueling(dateText: String = "Hoje"): Boolean {
         val station = logStationName.value.trim()
-        val litStr = logLiters.value.trim()
-        val priceStr = logPricePerLiter.value.trim()
+        val litStr = logLiters.value.trim().replace(",", ".")
+        val priceStr = logPricePerLiter.value.trim().replace(",", ".")
 
         if (station.isEmpty() || litStr.isEmpty() || priceStr.isEmpty()) {
             return false
@@ -1112,6 +1112,24 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
             logPricePerLiter.value = ""
         }
         return true
+    }
+
+    fun deleteRefueling(refueling: Refueling) {
+        viewModelScope.launch {
+            repository.deleteRefueling(refueling)
+        }
+    }
+
+    fun updateRefueling(refueling: Refueling, newStationName: String, newLiters: Double, newPricePerLiter: Double) {
+        viewModelScope.launch {
+            val updated = refueling.copy(
+                stationName = newStationName,
+                liters = newLiters,
+                pricePerLiter = newPricePerLiter,
+                totalPaid = newLiters * newPricePerLiter
+            )
+            repository.updateRefueling(updated)
+        }
     }
 
     // Owner: Save prices on the pump and legal details -> persist and reflect immediately on maps/lists

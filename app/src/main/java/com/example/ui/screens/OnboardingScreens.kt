@@ -1182,181 +1182,154 @@ fun OnboardingIntroScreen(viewModel: PrecoNaBombaViewModel) {
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(top = 64.dp, bottom = 40.dp)
-                .verticalScroll(rememberScrollState()),
+                .padding(top = 64.dp, bottom = 24.dp, start = 24.dp, end = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Crossfade(
-                targetState = currentPage,
+            // Flexible carousel container
+            Box(
                 modifier = Modifier.weight(1f),
-                label = "onboarding_slides"
-            ) { page ->
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 24.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.Center
-                ) {
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Image container
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(300.dp)
-                            .padding(bottom = 24.dp),
-                        contentAlignment = Alignment.Center
+                contentAlignment = Alignment.Center
+            ) {
+                Crossfade(
+                    targetState = currentPage,
+                    label = "onboarding_slides"
+                ) { page ->
+                    Column(
+                        modifier = Modifier.fillMaxSize(),
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.Center
                     ) {
-                        val imageId = when (page) {
-                            0 -> com.example.R.drawable.img_onboarding_savings
-                            1 -> com.example.R.drawable.img_onboarding_map
-                            else -> com.example.R.drawable.img_onboarding_premium
-                        }
-                        Image(
-                            painter = painterResource(id = imageId),
-                            contentDescription = "Onboarding Image",
-                            modifier = Modifier.fillMaxSize(),
-                            contentScale = ContentScale.Fit
-                        )
-                    }
-                    
-                    // Header text + Highlights
-                    when (page) {
-                        0 -> {
-                            Text(
-                                text = "Economize em cada quilômetro",
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF00327D),
-                                textAlign = TextAlign.Center,
-                                lineHeight = 32.sp
+                        // Image container
+                        Box(
+                            modifier = Modifier
+                                .weight(1.2f)
+                                .fillMaxWidth()
+                                .padding(bottom = 16.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            val imageId = when (page) {
+                                0 -> com.example.R.drawable.img_onboarding_savings
+                                1 -> com.example.R.drawable.img_onboarding_map
+                                else -> com.example.R.drawable.img_onboarding_premium
+                            }
+                            Image(
+                                painter = painterResource(id = imageId),
+                                contentDescription = "Onboarding Image",
+                                modifier = Modifier.fillMaxHeight(),
+                                contentScale = ContentScale.Fit
                             )
                         }
-                        1 -> {
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                        
+                        // Header text
+                        when (page) {
+                            0 -> {
                                 Text(
-                                    text = "Encontre o",
-                                    fontSize = 26.sp,
+                                    text = "Economize em cada quilômetro",
+                                    fontSize = 24.sp,
                                     fontWeight = FontWeight.ExtraBold,
                                     color = Color(0xFF00327D),
                                     textAlign = TextAlign.Center,
-                                    lineHeight = 32.sp
+                                    lineHeight = 30.sp
                                 )
-                                Spacer(modifier = Modifier.height(4.dp))
-                                Box(
-                                    modifier = Modifier
-                                        .clip(RoundedCornerShape(8.dp))
-                                        .background(Color(0xFFFFF0C2))
-                                        .padding(horizontal = 16.dp, vertical = 4.dp)
-                                ) {
+                            }
+                            1 -> {
+                                Column(horizontalAlignment = Alignment.CenterHorizontally) {
                                     Text(
-                                        text = "Posto Certo",
-                                        fontSize = 26.sp,
+                                        text = "Encontre o",
+                                        fontSize = 24.sp,
                                         fontWeight = FontWeight.ExtraBold,
-                                        color = Color(0xFF8A6D00),
+                                        color = Color(0xFF00327D),
                                         textAlign = TextAlign.Center,
-                                        lineHeight = 32.sp
+                                        lineHeight = 30.sp
                                     )
+                                    Spacer(modifier = Modifier.height(4.dp))
+                                    Box(
+                                        modifier = Modifier
+                                            .clip(RoundedCornerShape(8.dp))
+                                            .background(Color(0xFFFFF0C2))
+                                            .padding(horizontal = 16.dp, vertical = 4.dp)
+                                    ) {
+                                        Text(
+                                            text = "Posto Certo",
+                                            fontSize = 24.sp,
+                                            fontWeight = FontWeight.ExtraBold,
+                                            color = Color(0xFF8A6D00),
+                                            textAlign = TextAlign.Center,
+                                            lineHeight = 30.sp
+                                        )
+                                    }
                                 }
                             }
+                            else -> {
+                                Text(
+                                    text = "Vantagens que valem a pena",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF00327D),
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 30.sp
+                                )
+                            }
                         }
-                        else -> {
-                            Text(
-                                text = "Vantagens que valem a pena",
-                                fontSize = 26.sp,
-                                fontWeight = FontWeight.ExtraBold,
-                                color = Color(0xFF00327D),
-                                textAlign = TextAlign.Center,
-                                lineHeight = 32.sp
-                            )
+                        
+                        Spacer(modifier = Modifier.height(12.dp))
+                        
+                        // Body Text Description
+                        val bodyText = when (page) {
+                            0 -> "Compare preços em tempo real e encontre as melhores ofertas nos postos mais próximos de você."
+                            1 -> "Navegue pelo mapa interativo e veja a localização exata e os serviços disponíveis em cada estabelecimento."
+                            else -> "Acesse promoções exclusivas, cashback e descontos especiais nos postos parceiros sendo um usuário Premium."
                         }
-                    }
-                    
-                    Spacer(modifier = Modifier.height(16.dp))
-                    
-                    // Body Text Description
-                    val bodyText = when (page) {
-                        0 -> "Compare preços em tempo real e encontre as melhores ofertas nos postos mais próximos de você."
-                        1 -> "Navegue pelo mapa interativo e veja a localização exata e os serviços disponíveis em cada estabelecimento."
-                        else -> "Acesse promoções exclusivas, cashback e descontos especiais nos postos parceiros sendo um usuário Premium."
-                    }
-                    
-                    Text(
-                        text = bodyText,
-                        fontSize = 15.sp,
-                        color = Color(0xFF4A5568),
-                        textAlign = TextAlign.Center,
-                        lineHeight = 22.sp,
-                        modifier = Modifier.padding(horizontal = 8.dp)
-                    )
-                    
-                    Spacer(modifier = Modifier.height(24.dp))
-                    
-                    // Dot Page Indicator
-                    Row(
-                        horizontalArrangement = Arrangement.Center,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        for (i in 0..2) {
-                            val isActive = i == page
-                            val width = if (isActive) 24.dp else 8.dp
-                            val color = if (isActive) Color(0xFF00327D) else Color(0xFFCBD5E0)
-                            Box(
-                                modifier = Modifier
-                                    .padding(horizontal = 4.dp)
-                                    .size(width = width, height = 8.dp)
-                                    .clip(CircleShape)
-                                    .background(color)
-                            )
-                        }
+                        
+                        Text(
+                            text = bodyText,
+                            fontSize = 14.sp,
+                            color = Color(0xFF4A5568),
+                            textAlign = TextAlign.Center,
+                            lineHeight = 20.sp,
+                            modifier = Modifier.padding(horizontal = 8.dp)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(8.dp))
                     }
                 }
             }
             
-            Spacer(modifier = Modifier.height(32.dp))
-            
-            // Action button container at the bottom
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 24.dp, vertical = 8.dp),
-                contentAlignment = Alignment.Center
+            // Fixed bottom section with indicators and primary action button
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
+                modifier = Modifier.fillMaxWidth()
             ) {
-                if (currentPage < 2) {
-                    Button(
-                        onClick = { currentPage++ },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF00327D),
-                            contentColor = Color.White
-                        ),
-                        shape = RoundedCornerShape(14.dp),
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(56.dp)
-                            .testTag("onboarding_next_button")
-                    ) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Text(text = "Próximo", fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Icon(
-                                imageVector = Icons.Default.ArrowForward,
-                                contentDescription = null,
-                                modifier = Modifier.size(20.dp)
-                            )
-                        }
+                // Dot Page Indicator (always visible)
+                Row(
+                    horizontalArrangement = Arrangement.Center,
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(vertical = 4.dp)
+                ) {
+                    for (i in 0..2) {
+                        val isActive = i == currentPage
+                        val width = if (isActive) 24.dp else 8.dp
+                        val color = if (isActive) Color(0xFF00327D) else Color(0xFFCBD5E0)
+                        Box(
+                            modifier = Modifier
+                                .padding(horizontal = 4.dp)
+                                .size(width = width, height = 8.dp)
+                                .clip(CircleShape)
+                                .background(color)
+                        )
                     }
-                } else {
-                    Column(
-                        horizontalAlignment = Alignment.CenterHorizontally,
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
+                }
+                
+                // Action button container at the bottom
+                Box(
+                    modifier = Modifier.fillMaxWidth(),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (currentPage < 2) {
                         Button(
-                            onClick = { viewModel.navigateTo(Screen.UserLogin) },
+                            onClick = { currentPage++ },
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = Color(0xFF00327D),
                                 contentColor = Color.White
@@ -1365,13 +1338,13 @@ fun OnboardingIntroScreen(viewModel: PrecoNaBombaViewModel) {
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .height(56.dp)
-                                .testTag("onboarding_finish_button")
+                                .testTag("onboarding_next_button")
                         ) {
                             Row(
                                 verticalAlignment = Alignment.CenterVertically,
                                 horizontalArrangement = Arrangement.Center
                             ) {
-                                Text(text = "Concluir", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Text(text = "Próximo", fontSize = 16.sp, fontWeight = FontWeight.Bold)
                                 Spacer(modifier = Modifier.width(8.dp))
                                 Icon(
                                     imageVector = Icons.Default.ArrowForward,
@@ -1380,16 +1353,47 @@ fun OnboardingIntroScreen(viewModel: PrecoNaBombaViewModel) {
                                 )
                             }
                         }
-                        
-                        Spacer(modifier = Modifier.height(16.dp))
-                        
-                        Text(
-                            text = "SUA JORNADA PREMIUM COMEÇA AGORA",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF718096),
-                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp)
-                        )
+                    } else {
+                        Column(
+                            horizontalAlignment = Alignment.CenterHorizontally,
+                            modifier = Modifier.fillMaxWidth()
+                        ) {
+                            Button(
+                                onClick = { viewModel.navigateTo(Screen.UserLogin) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = Color(0xFF00327D),
+                                    contentColor = Color.White
+                                ),
+                                shape = RoundedCornerShape(14.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(56.dp)
+                                    .testTag("onboarding_finish_button")
+                            ) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(text = "Concluir", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Icon(
+                                        imageVector = Icons.Default.ArrowForward,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                            }
+                            
+                            Spacer(modifier = Modifier.height(12.dp))
+                            
+                            Text(
+                                text = "SUA JORNADA PREMIUM COMEÇA AGORA",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF718096),
+                                style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp)
+                            )
+                        }
                     }
                 }
             }
