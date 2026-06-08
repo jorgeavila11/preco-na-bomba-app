@@ -13,6 +13,7 @@ enum class StationSaveState {
 }
 
 sealed interface Screen {
+    object OnboardingIntro : Screen // New 3-page slideshow onboarding
     object OnboardingRoleSelection : Screen
     object DriverRegister : Screen
     object StationRegister : Screen
@@ -35,7 +36,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
     private var varLastFetchLng = 0.0
 
     // Main Navigation state
-    private val _currentScreen = MutableStateFlow<Screen>(Screen.UserLogin)
+    private val _currentScreen = MutableStateFlow<Screen>(Screen.OnboardingIntro)
     val currentScreen: StateFlow<Screen> = _currentScreen.asStateFlow()
 
     // Driver GPS Geolocation state

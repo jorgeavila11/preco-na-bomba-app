@@ -33,6 +33,10 @@ import com.example.ui.viewmodel.Screen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.foundation.Image
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.foundation.shape.CircleShape
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -544,47 +548,7 @@ fun StationRegisterScreen(
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // Steps Progress Indicator
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Text(
-                        text = "Etapa 1 de 3",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Text(
-                        text = "33% concluído",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
 
-                Spacer(modifier = Modifier.height(8.dp))
-
-                LinearProgressIndicator(
-                    progress = { 0.33f },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(8.dp)
-                        .clip(RoundedCornerShape(4.dp)),
-                    color = MaterialTheme.colorScheme.primary,
-                    trackColor = MaterialTheme.colorScheme.surfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = "Informações de Registro e Identidade",
-                    fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
-            Spacer(modifier = Modifier.height(8.dp))
 
             Text(
                 text = "Seja um parceiro",
@@ -609,7 +573,7 @@ fun StationRegisterScreen(
                     OutlinedTextField(
                         value = cnpj,
                         onValueChange = { cnpj = it },
-                        placeholder = { Text("Ex: 12.345.678/0001-99") },
+                        placeholder = { Text("Ex: 12.345.678/0001-99", fontSize = 12.sp) },
                         leadingIcon = { Icon(Icons.Default.Info, null) },
                         modifier = Modifier.weight(1f),
                         shape = RoundedCornerShape(12.dp)
@@ -1156,6 +1120,279 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+        }
+    }
+}
+
+@Composable
+fun OnboardingIntroScreen(viewModel: PrecoNaBombaViewModel) {
+    var currentPage by remember { mutableStateOf(0) }
+    
+    val backgroundBrush = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFFFFFFFF),
+            Color(0xFFF4F7FB)
+        )
+    )
+    
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(backgroundBrush)
+            .statusBarsPadding()
+            .navigationBarsPadding()
+    ) {
+        // Skip / Back upper bar
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .align(Alignment.TopCenter),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (currentPage > 0) {
+                IconButton(
+                    onClick = { currentPage-- },
+                    modifier = Modifier.testTag("onboarding_back_button")
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.ArrowBack,
+                        contentDescription = "Voltar",
+                        tint = Color(0xFF00327D)
+                    )
+                }
+            } else {
+                Spacer(modifier = Modifier.size(48.dp))
+            }
+            
+            Text(
+                text = "Pular",
+                fontSize = 15.sp,
+                color = Color(0xFF555555),
+                fontWeight = FontWeight.Medium,
+                modifier = Modifier
+                    .clickable { viewModel.navigateTo(Screen.UserLogin) }
+                    .padding(8.dp)
+                    .testTag("onboarding_skip_button")
+            )
+        }
+        
+        // Single central column with content
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(top = 64.dp, bottom = 40.dp)
+                .verticalScroll(rememberScrollState()),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.SpaceBetween
+        ) {
+            Crossfade(
+                targetState = currentPage,
+                modifier = Modifier.weight(1f),
+                label = "onboarding_slides"
+            ) { page ->
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 24.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center
+                ) {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Image container
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(300.dp)
+                            .padding(bottom = 24.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val imageId = when (page) {
+                            0 -> com.example.R.drawable.img_onboarding_savings
+                            1 -> com.example.R.drawable.img_onboarding_map
+                            else -> com.example.R.drawable.img_onboarding_premium
+                        }
+                        Image(
+                            painter = painterResource(id = imageId),
+                            contentDescription = "Onboarding Image",
+                            modifier = Modifier.fillMaxSize(),
+                            contentScale = ContentScale.Fit
+                        )
+                    }
+                    
+                    // Header text + Highlights
+                    when (page) {
+                        0 -> {
+                            Text(
+                                text = "Economize em cada quilômetro",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF00327D),
+                                textAlign = TextAlign.Center,
+                                lineHeight = 32.sp
+                            )
+                        }
+                        1 -> {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Text(
+                                    text = "Encontre o",
+                                    fontSize = 26.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF00327D),
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 32.sp
+                                )
+                                Spacer(modifier = Modifier.height(4.dp))
+                                Box(
+                                    modifier = Modifier
+                                        .clip(RoundedCornerShape(8.dp))
+                                        .background(Color(0xFFFFF0C2))
+                                        .padding(horizontal = 16.dp, vertical = 4.dp)
+                                ) {
+                                    Text(
+                                        text = "Posto Certo",
+                                        fontSize = 26.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF8A6D00),
+                                        textAlign = TextAlign.Center,
+                                        lineHeight = 32.sp
+                                    )
+                                }
+                            }
+                        }
+                        else -> {
+                            Text(
+                                text = "Vantagens que valem a pena",
+                                fontSize = 26.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF00327D),
+                                textAlign = TextAlign.Center,
+                                lineHeight = 32.sp
+                            )
+                        }
+                    }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    // Body Text Description
+                    val bodyText = when (page) {
+                        0 -> "Compare preços em tempo real e encontre as melhores ofertas nos postos mais próximos de você."
+                        1 -> "Navegue pelo mapa interativo e veja a localização exata e os serviços disponíveis em cada estabelecimento."
+                        else -> "Acesse promoções exclusivas, cashback e descontos especiais nos postos parceiros sendo um usuário Premium."
+                    }
+                    
+                    Text(
+                        text = bodyText,
+                        fontSize = 15.sp,
+                        color = Color(0xFF4A5568),
+                        textAlign = TextAlign.Center,
+                        lineHeight = 22.sp,
+                        modifier = Modifier.padding(horizontal = 8.dp)
+                    )
+                    
+                    Spacer(modifier = Modifier.height(24.dp))
+                    
+                    // Dot Page Indicator
+                    Row(
+                        horizontalArrangement = Arrangement.Center,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        for (i in 0..2) {
+                            val isActive = i == page
+                            val width = if (isActive) 24.dp else 8.dp
+                            val color = if (isActive) Color(0xFF00327D) else Color(0xFFCBD5E0)
+                            Box(
+                                modifier = Modifier
+                                    .padding(horizontal = 4.dp)
+                                    .size(width = width, height = 8.dp)
+                                    .clip(CircleShape)
+                                    .background(color)
+                            )
+                        }
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            // Action button container at the bottom
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 24.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                if (currentPage < 2) {
+                    Button(
+                        onClick = { currentPage++ },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF00327D),
+                            contentColor = Color.White
+                        ),
+                        shape = RoundedCornerShape(14.dp),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(56.dp)
+                            .testTag("onboarding_next_button")
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Center
+                        ) {
+                            Text(text = "Próximo", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Icon(
+                                imageVector = Icons.Default.ArrowForward,
+                                contentDescription = null,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                } else {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Button(
+                            onClick = { viewModel.navigateTo(Screen.UserLogin) },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF00327D),
+                                contentColor = Color.White
+                            ),
+                            shape = RoundedCornerShape(14.dp),
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(56.dp)
+                                .testTag("onboarding_finish_button")
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.Center
+                            ) {
+                                Text(text = "Concluir", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Icon(
+                                    imageVector = Icons.Default.ArrowForward,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(20.dp)
+                                )
+                            }
+                        }
+                        
+                        Spacer(modifier = Modifier.height(16.dp))
+                        
+                        Text(
+                            text = "SUA JORNADA PREMIUM COMEÇA AGORA",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF718096),
+                            style = MaterialTheme.typography.labelSmall.copy(letterSpacing = 1.sp)
+                        )
+                    }
+                }
+            }
         }
     }
 }

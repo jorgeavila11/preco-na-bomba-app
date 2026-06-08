@@ -55,6 +55,9 @@ class MainActivity : ComponentActivity() {
 
                     // MVVM navigation coordinator mapping
                     when (currentScreen) {
+                        Screen.OnboardingIntro -> {
+                            OnboardingIntroScreen(viewModel = viewModel)
+                        }
                         Screen.OnboardingRoleSelection -> {
                             OnboardingRoleSelectionScreen(
                                 viewModel = viewModel,
