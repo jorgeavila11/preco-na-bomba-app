@@ -456,791 +456,6 @@ fun MainStationHome(
                     }
                 }
             }
-
-            // Promotional manager module: Add promo dialog list
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 20.dp),
-                verticalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    val currentStationId by viewModel.currentStationId.collectAsState()
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Default.AddCircle,
-                            contentDescription = "Gerenciar Promoções",
-                            tint = Color(0xFF2563EB),
-                            modifier = Modifier.size(24.dp)
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Gerenciar Promoções", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
-                    }
-
-                    TextButton(onClick = {
-                        if (planState == "Conta Pro") {
-                            isUpgradeOfferOpen = true
-                        } else {
-                            editingPromo = null
-                            isAddPromoOpen = true
-                        }
-                    }) {
-                        Text("Nova", fontWeight = FontWeight.Bold, color = Color(0xFF2563EB), fontSize = 14.sp)
-                    }
-                }
-
-                val currentStationId by viewModel.currentStationId.collectAsState()
-                val currentStationName by viewModel.editStationName.collectAsState()
-                val currentStationCnpj by viewModel.editStationCNPJ.collectAsState()
-                val currentStationEmail by viewModel.editStationEmail.collectAsState()
-                
-                val currentUid = com.example.data.FirebaseManager.getCurrentUserUid() ?: ""
-                
-                val stationPromos = promos.filter { promo ->
-                    val matchesId = promo.stationId == currentStationId
-                    val matchesUid = !promo.firestoreStationId.isNullOrBlank() && (promo.firestoreStationId == currentUid)
-                    
-                    val sName = currentStationName.lowercase()
-                    val pStationName = promo.stationName.lowercase()
-                    val pStationId = promo.firestoreStationId?.lowercase() ?: ""
-                    
-                    val matchesEmail = !currentStationEmail.isNullOrBlank() && pStationId == currentStationEmail.lowercase()
-                    val matchesCnpj = !currentStationCnpj.isNullOrBlank() && pStationId == currentStationCnpj.replace(Regex("[^0-9]"), "")
-                    
-                    val isCohabStation = sName.contains("cohab") || sName.contains("cohab 3") || sName.contains("cohab iii")
-                    val isCohabPromo = pStationId.contains("cohab") || pStationName.contains("cohab") || promo.title.lowercase().contains("cohab") || (promo.description?.lowercase() ?: "").contains("cohab")
-                    val cohabMatch = isCohabStation && isCohabPromo
-                    
-                    val matchesFuzzyName = pStationId.isNotEmpty() && (sName.contains(pStationId) || pStationId.contains(sName))
-                    val matchesFuzzyStationName = sName.contains(pStationName) || pStationName.contains(sName)
-                    
-                    matchesId || matchesUid || matchesEmail || matchesCnpj || cohabMatch || matchesFuzzyName || matchesFuzzyStationName
-                }
-
-                if (stationPromos.isEmpty()) {
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
-                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            Text(
-                                text = "Nenhuma promoção cadastrada ainda.",
-                                fontSize = 13.sp,
-                                color = Color.Gray,
-                                textAlign = TextAlign.Center
-                            )
-                        }
-                    }
-                } else {
-                    stationPromos.forEach { item ->
-                        val displayStart = formatBraDate(item.startDate)
-                        val displayEnd = formatBraDate(item.endDate)
-                        val expired = isPromoExpired(item.endDate)
-
-                        Card(
-                            modifier = Modifier.fillMaxWidth(),
-                            shape = RoundedCornerShape(16.dp),
-                            colors = CardDefaults.cardColors(containerColor = Color.White),
-                            border = BorderStroke(1.dp, if (expired) Color(0xFFFCA5A5) else Color(0xFFE2E8F0)),
-                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
-                        ) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(16.dp)
-                            ) {
-                                // Row 1: Icon, Title & Description, Price
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.Top
-                                ) {
-                                    Box(
-                                        modifier = Modifier
-                                            .size(46.dp)
-                                            .background(
-                                                if (expired) Color(0xFFFEF2F2) else Color(0xFFEFF6FF),
-                                                RoundedCornerShape(10.dp)
-                                            ),
-                                        contentAlignment = Alignment.Center
-                                    ) {
-                                        Icon(
-                                            imageVector = when (item.category) {
-                                                "Combustível" -> Icons.Default.Star
-                                                "Conveniência" -> Icons.Default.ShoppingCart
-                                                "Serviços" -> Icons.Default.Build
-                                                else -> Icons.Default.ShoppingCart
-                                            },
-                                            contentDescription = null,
-                                            tint = if (expired) Color(0xFFEF4444) else Color(0xFF2563EB),
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-
-                                    Spacer(modifier = Modifier.width(12.dp))
-
-                                    Column(modifier = Modifier.weight(1f)) {
-                                        Text(
-                                            text = item.title,
-                                            fontWeight = FontWeight.Bold,
-                                            fontSize = 15.sp,
-                                            color = Color(0xFF0F172A)
-                                        )
-                                        if (!item.description.isNullOrEmpty()) {
-                                            Text(
-                                                text = item.description,
-                                                fontSize = 13.sp,
-                                                color = Color(0xFF64748B),
-                                                modifier = Modifier.padding(top = 2.dp)
-                                            )
-                                        }
-                                    }
-
-                                    Spacer(modifier = Modifier.width(8.dp))
-
-                                    Text(
-                                        text = item.value,
-                                        fontWeight = FontWeight.Black,
-                                        color = if (expired) Color(0xFF94A3B8) else Color(0xFF2563EB),
-                                        fontSize = 16.sp
-                                    )
-                                }
-
-                                Spacer(modifier = Modifier.height(12.dp))
-
-                                // Subtle separator line
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(1.dp)
-                                        .background(Color(0xFFF1F5F9))
-                                )
-
-                                Spacer(modifier = Modifier.height(8.dp))
-
-                                // Row 2: Date period (with badge) & Action Buttons
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically,
-                                    horizontalArrangement = Arrangement.SpaceBetween
-                                ) {
-                                    Column(
-                                        modifier = Modifier.weight(1f, fill = false),
-                                        verticalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        Row(
-                                            verticalAlignment = Alignment.CenterVertically,
-                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.DateRange,
-                                                contentDescription = null,
-                                                tint = Color(0xFF64748B),
-                                                modifier = Modifier.size(14.dp)
-                                            )
-                                            Text(
-                                                text = if (displayStart.isNotEmpty() && displayEnd.isNotEmpty()) {
-                                                    "$displayStart até $displayEnd"
-                                                } else {
-                                                    "Período indeterminado"
-                                                },
-                                                fontSize = 12.sp,
-                                                color = Color(0xFF64748B)
-                                            )
-                                        }
-                                        if (item.isDeactivated) {
-                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                                Box(
-                                                    modifier = Modifier
-                                                        .background(Color(0xFFFEF2F2), RoundedCornerShape(6.dp))
-                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
-                                                ) {
-                                                    Text(
-                                                        text = "Encerrada",
-                                                        fontSize = 11.sp,
-                                                        fontWeight = FontWeight.Bold,
-                                                        color = Color(0xFFEF4444)
-                                                    )
-                                                }
-                                                if (!item.deactivationJustification.isNullOrBlank()) {
-                                                    Text(
-                                                        text = item.deactivationJustification,
-                                                        fontSize = 11.sp,
-                                                        color = Color(0xFFEF4444),
-                                                        fontWeight = FontWeight.Medium
-                                                    )
-                                                }
-                                            }
-                                        } else if (expired) {
-                                            Box(
-                                                modifier = Modifier
-                                                    .background(Color(0xFFF3F4F6), RoundedCornerShape(6.dp))
-                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
-                                            ) {
-                                                Text(
-                                                    text = "Expirada",
-                                                    fontSize = 10.sp,
-                                                    fontWeight = FontWeight.Bold,
-                                                    color = Color(0xFF6B7280)
-                                                )
-                                            }
-                                        }
-                                    }
-
-                                    Row(
-                                        verticalAlignment = Alignment.CenterVertically,
-                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
-                                    ) {
-                                        if (!item.isDeactivated && !expired) {
-                                            IconButton(
-                                                onClick = {
-                                                    deactivatingPromo = item
-                                                    showDeactivateDialog = true
-                                                },
-                                                modifier = Modifier.size(36.dp)
-                                            ) {
-                                                Icon(
-                                                    imageVector = Icons.Default.Close,
-                                                    contentDescription = "Encerrar",
-                                                    tint = Color(0xFFEF4444),
-                                                    modifier = Modifier.size(20.dp)
-                                                )
-                                            }
-                                        }
-
-                                        IconButton(
-                                            onClick = {
-                                                editingPromo = item
-                                                isAddPromoOpen = true
-                                            },
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Edit,
-                                                contentDescription = "Editar",
-                                                tint = Color(0xFF2563EB),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-
-                                        IconButton(
-                                            onClick = {
-                                                viewModel.deletePromotion(item)
-                                                Toast.makeText(context, "Promoção excluída com sucesso!", Toast.LENGTH_SHORT).show()
-                                            },
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Icon(
-                                                imageVector = Icons.Default.Delete,
-                                                contentDescription = "Excluir",
-                                                tint = Color(0xFF94A3B8),
-                                                modifier = Modifier.size(20.dp)
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    // Deactivate Promotion with Justification Dialog
-    if (showDeactivateDialog && deactivatingPromo != null) {
-        val justifications = listOf(
-            "Estoque esgotado (lote promocional finalizado)",
-            "Aguardando reabastecimento",
-            "Meta de vendas da campanha atingida",
-            "Encerramento antecipado por decisão do posto",
-            "Sistema de desconto fora do ar temporariamente",
-            "Brindes ou itens da promoção esgotados",
-            "Outro motivo (justificativa digitada pelo posto)"
-        )
-
-        AlertDialog(
-            onDismissRequest = {
-                showDeactivateDialog = false
-                selectedJustificationIndex = -1
-                customJustificationText = ""
-            },
-            title = {
-                Text(
-                    text = "Encerrar Promoção",
-                    fontSize = 18.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = Color(0xFF0F172A)
-                )
-            },
-            text = {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .verticalScroll(rememberScrollState()),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Text(
-                        text = "Selecione uma justificativa para encerrar a promoção \"${deactivatingPromo?.title}\":",
-                        fontSize = 13.sp,
-                        color = Color(0xFF475569)
-                    )
-
-                    justifications.forEachIndexed { index, option ->
-                        val isSelected = selectedJustificationIndex == index
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable { selectedJustificationIndex = index }
-                                .padding(vertical = 4.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            RadioButton(
-                                selected = isSelected,
-                                onClick = { selectedJustificationIndex = index }
-                            )
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(
-                                text = option,
-                                fontSize = 13.sp,
-                                color = Color(0xFF1E293B)
-                            )
-                        }
-                    }
-
-                    if (selectedJustificationIndex == justifications.lastIndex) {
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = "Digite o motivo personalizado:",
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color(0xFF64748B)
-                        )
-                        OutlinedTextField(
-                            value = customJustificationText,
-                            onValueChange = { customJustificationText = it },
-                            placeholder = { Text("Justificativa...", color = Color(0xFF94A3B8), fontSize = 13.sp) },
-                            modifier = Modifier.fillMaxWidth(),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
-                            shape = RoundedCornerShape(10.dp)
-                        )
-                    }
-                }
-            },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        val finalReason = if (selectedJustificationIndex == justifications.lastIndex) {
-                            customJustificationText.trim()
-                        } else if (selectedJustificationIndex >= 0) {
-                            justifications[selectedJustificationIndex]
-                        } else {
-                            ""
-                        }
-
-                        if (finalReason.isEmpty()) {
-                            Toast.makeText(context, "Por favor, defina uma justificativa.", Toast.LENGTH_SHORT).show()
-                        } else {
-                            deactivatingPromo?.let {
-                                viewModel.deactivatePromotion(it, finalReason)
-                                Toast.makeText(context, "Promoção encerrada com sucesso!", Toast.LENGTH_SHORT).show()
-                            }
-                            showDeactivateDialog = false
-                            selectedJustificationIndex = -1
-                            customJustificationText = ""
-                        }
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Text("Confirmar Encerramento", color = Color.White, fontSize = 13.sp)
-                }
-            },
-            dismissButton = {
-                TextButton(
-                    onClick = {
-                        showDeactivateDialog = false
-                        selectedJustificationIndex = -1
-                        customJustificationText = ""
-                    }
-                ) {
-                    Text("Cancelar", color = Color(0xFF64748B), fontSize = 13.sp)
-                }
-            },
-            shape = RoundedCornerShape(20.dp),
-            containerColor = Color.White
-        )
-    }
-
-    // Upgrade Offer dialogue for Conta Pro owners attempting to create promos
-    if (isUpgradeOfferOpen) {
-        AlertDialog(
-            onDismissRequest = { isUpgradeOfferOpen = false },
-            confirmButton = {
-                Button(
-                    onClick = {
-                        viewModel.ownerStationPlan.value = "Conta Premium"
-                        isUpgradeOfferOpen = false
-                        Toast.makeText(context, "Upgrade efetuado com sucesso! Agora você possui acesso à Conta Premium 🚀", Toast.LENGTH_LONG).show()
-                    },
-                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
-                ) {
-                    Text("Adquirir Conta Premium", fontWeight = FontWeight.Bold, color = Color.White)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { isUpgradeOfferOpen = false }) {
-                    Text("Depois")
-                }
-            },
-            title = { Text("Recurso da Conta Premium 💎", fontWeight = FontWeight.Bold) },
-            text = {
-                Text(
-                    "O cadastro de promoções é uma funcionalidade exclusiva para parceiros do plano Premium.\n\n" +
-                    "Ao fazer o upgrade de Conta Pro para Conta Premium por apenas R$ 99,90/mês, " +
-                    "você ganha o direito de lançar cupons e ganha visibilidade prioritária no mapa dos motoristas!"
-                )
-            }
-        )
-    }
-
-    // Dynamic Promo append custom dialog (representing screenshot form exactly)
-    if (isAddPromoOpen) {
-        val initStart = if (editingPromo != null) formatBraDate(editingPromo?.startDate) else ""
-        val initEnd = if (editingPromo != null) formatBraDate(editingPromo?.endDate) else ""
-        val initPrice = if (editingPromo != null) {
-            editingPromo?.price?.let { if (it > 0.0) String.format(java.util.Locale.US, "%.2f", it).replace('.', ',') else "" } ?: ""
-        } else ""
-
-        var promoTitle by remember(editingPromo) { mutableStateOf(editingPromo?.title ?: "") }
-        var promoDesc by remember(editingPromo) { mutableStateOf(editingPromo?.description ?: "") }
-        var promoPriceStr by remember(editingPromo) { mutableStateOf(initPrice) }
-        var promoCat by remember(editingPromo) { mutableStateOf(editingPromo?.category ?: "Conveniência") }
-        var promoStartDate by remember(editingPromo) { mutableStateOf(initStart) }
-        var promoEndDate by remember(editingPromo) { mutableStateOf(initEnd) }
-        var isDropdownExpanded by remember { mutableStateOf(false) }
-
-        val categories = listOf("Conveniência", "Combustível", "Serviços")
-        val calendar = java.util.Calendar.getInstance()
-
-        fun showDatePicker(onDateSelected: (String) -> Unit) {
-            android.app.DatePickerDialog(
-                context,
-                { _, year, month, dayOfMonth ->
-                    val formatted = String.format("%02d/%02d/%04d", dayOfMonth, month + 1, year)
-                    onDateSelected(formatted)
-                },
-                calendar.get(java.util.Calendar.YEAR),
-                calendar.get(java.util.Calendar.MONTH),
-                calendar.get(java.util.Calendar.DAY_OF_MONTH)
-            ).show()
-        }
-
-        fun formatBraDateToIso(braDate: String): String {
-            return try {
-                val parser = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
-                val formatter = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
-                val date = parser.parse(braDate)
-                if (date != null) formatter.format(date) else braDate
-            } catch (e: Exception) {
-                braDate
-            }
-        }
-
-        Dialog(onDismissRequest = { isAddPromoOpen = false }) {
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .wrapContentHeight()
-                    .padding(16.dp),
-                shape = RoundedCornerShape(24.dp),
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
-            ) {
-                Column(modifier = Modifier.fillMaxWidth()) {
-                    // Blue Header Block
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .background(Color(0xFF2563EB))
-                            .padding(vertical = 24.dp, horizontal = 24.dp)
-                    ) {
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text(
-                                text = if (editingPromo != null) "Editar Promoção" else "Nova Promoção",
-                                fontSize = 22.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = Color.White
-                            )
-                            Text(
-                                text = if (editingPromo != null) "Ajuste os detalhes e o prazo" else "Defina os detalhes e o prazo",
-                                fontSize = 14.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                        }
-                    }
-
-                    // Fields Body Block
-                    Column(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .padding(24.dp),
-                        verticalArrangement = Arrangement.spacedBy(16.dp)
-                    ) {
-                        // TÍTULO
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("TÍTULO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                            TextField(
-                                value = promoTitle,
-                                onValueChange = { promoTitle = it },
-                                placeholder = { Text("Ex: Promoção no Café", color = Color(0xFF94A3B8), fontSize = 14.sp) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = Color(0xFFF8FAFC),
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    focusedTextColor = Color(0xFF1E293B),
-                                    unfocusedTextColor = Color(0xFF1E293B)
-                                )
-                            )
-                        }
-
-                        // DESCRIÇÃO (OPCIONAL)
-                        Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Text("DESCRIÇÃO (OPCIONAL)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                            TextField(
-                                value = promoDesc,
-                                onValueChange = { promoDesc = it },
-                                placeholder = { Text("Ex: Café expresso + pão de queijo", color = Color(0xFF94A3B8), fontSize = 14.sp) },
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(52.dp),
-                                shape = RoundedCornerShape(12.dp),
-                                colors = TextFieldDefaults.colors(
-                                    focusedContainerColor = Color(0xFFF8FAFC),
-                                    unfocusedContainerColor = Color(0xFFF8FAFC),
-                                    focusedIndicatorColor = Color.Transparent,
-                                    unfocusedIndicatorColor = Color.Transparent,
-                                    focusedTextColor = Color(0xFF1E293B),
-                                    unfocusedTextColor = Color(0xFF1E293B)
-                                )
-                            )
-                        }
-
-                        // Row: PREÇO (R$) and CATEGORIA
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // PREÇO (R$)
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("PREÇO (R$)", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                TextField(
-                                    value = promoPriceStr,
-                                    onValueChange = { promoPriceStr = it },
-                                    placeholder = { Text("9,90", color = Color(0xFF94A3B8), fontSize = 14.sp) },
-                                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp),
-                                    shape = RoundedCornerShape(12.dp),
-                                    colors = TextFieldDefaults.colors(
-                                        focusedContainerColor = Color(0xFFF8FAFC),
-                                        unfocusedContainerColor = Color(0xFFF8FAFC),
-                                        focusedIndicatorColor = Color.Transparent,
-                                        unfocusedIndicatorColor = Color.Transparent,
-                                        focusedTextColor = Color(0xFF1E293B),
-                                        unfocusedTextColor = Color(0xFF1E293B)
-                                    )
-                                )
-                            }
-
-                            // CATEGORIA
-                            Box(modifier = Modifier.weight(1f)) {
-                                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                    Text("CATEGORIA", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                    Box(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .height(52.dp)
-                                            .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
-                                            .clickable { isDropdownExpanded = true }
-                                            .padding(horizontal = 14.dp),
-                                        contentAlignment = Alignment.CenterStart
-                                    ) {
-                                        Row(
-                                            modifier = Modifier.fillMaxWidth(),
-                                            horizontalArrangement = Arrangement.SpaceBetween,
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Text(promoCat, color = Color(0xFF1E293B), fontSize = 14.sp)
-                                            Icon(
-                                                imageVector = Icons.Default.KeyboardArrowDown,
-                                                contentDescription = null,
-                                                tint = Color(0xFF64748B)
-                                            )
-                                        }
-                                    }
-                                    DropdownMenu(
-                                        expanded = isDropdownExpanded,
-                                        onDismissRequest = { isDropdownExpanded = false }
-                                    ) {
-                                        categories.forEach { cat ->
-                                            DropdownMenuItem(
-                                                text = { Text(cat) },
-                                                onClick = {
-                                                    promoCat = cat
-                                                    isDropdownExpanded = false
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-
-                        // Row: INÍCIO and FIM
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            // INÍCIO
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("INÍCIO", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                        .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
-                                        .clickable { showDatePicker { promoStartDate = it } }
-                                        .padding(horizontal = 14.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (promoStartDate.isEmpty()) "dd / mm / aaaa" else promoStartDate,
-                                            color = if (promoStartDate.isEmpty()) Color(0xFF94A3B8) else Color(0xFF1E293B),
-                                            fontSize = 14.sp
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.DateRange,
-                                            contentDescription = "Selecionar data de início",
-                                            tint = Color(0xFF64748B),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-
-                            // FIM
-                            Column(modifier = Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Text("FIM", fontSize = 10.sp, fontWeight = FontWeight.Bold, color = Color(0xFF64748B))
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .height(52.dp)
-                                        .background(Color(0xFFF8FAFC), RoundedCornerShape(12.dp))
-                                        .clickable { showDatePicker { promoEndDate = it } }
-                                        .padding(horizontal = 14.dp),
-                                    contentAlignment = Alignment.CenterStart
-                                ) {
-                                    Row(
-                                        modifier = Modifier.fillMaxWidth(),
-                                        horizontalArrangement = Arrangement.SpaceBetween,
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Text(
-                                            text = if (promoEndDate.isEmpty()) "dd / mm / aaaa" else promoEndDate,
-                                            color = if (promoEndDate.isEmpty()) Color(0xFF94A3B8) else Color(0xFF1E293B),
-                                            fontSize = 14.sp
-                                        )
-                                        Icon(
-                                            imageVector = Icons.Default.DateRange,
-                                            contentDescription = "Selecionar data de fim",
-                                            tint = Color(0xFF64748B),
-                                            modifier = Modifier.size(20.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Bottom Actions Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            Button(
-                                onClick = { isAddPromoOpen = false },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFF1F5F9)),
-                                modifier = Modifier.weight(1f).height(52.dp),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text("Cancelar", fontWeight = FontWeight.Bold, color = Color(0xFF475569))
-                            }
-                            Button(
-                                onClick = {
-                                    val price = promoPriceStr.replace(',', '.').toDoubleOrNull() ?: 0.0
-                                    val isoStart = formatBraDateToIso(promoStartDate)
-                                    val isoEnd = formatBraDateToIso(promoEndDate)
-                                    
-                                    viewModel.addNewPromotion(
-                                        title = promoTitle,
-                                        description = promoDesc,
-                                        price = price,
-                                        category = promoCat,
-                                        startDate = isoStart,
-                                        endDate = isoEnd,
-                                        icon = when (promoCat) {
-                                            "Combustível" -> "local_gas_station"
-                                            "Conveniência" -> "shopping_basket"
-                                            "Serviços" -> "build"
-                                            else -> "sell"
-                                        },
-                                        docId = editingPromo?.docId
-                                    )
-                                    isAddPromoOpen = false
-                                    if (editingPromo != null) {
-                                        Toast.makeText(context, "Promoção atualizada!", Toast.LENGTH_SHORT).show()
-                                    } else {
-                                        Toast.makeText(context, "Nova promoção lançada!", Toast.LENGTH_SHORT).show()
-                                    }
-                                },
-                                colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2563EB)),
-                                modifier = Modifier.weight(1f).height(52.dp).testTag("dialog_save_promo"),
-                                shape = RoundedCornerShape(12.dp)
-                            ) {
-                                Text(
-                                    text = if (editingPromo != null) "Salvar" else "Criar",
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                            }
-                        }
-                    }
-                }
-            }
         }
     }
 }
@@ -1507,10 +722,10 @@ fun StationBottomNavigationBar(
         )
 
         NavigationBarItem(
-            selected = false,
-            onClick = { /* Simulated config */ },
-            icon = { Icon(Icons.Default.Settings, null) },
-            label = { Text("Ajustes", fontSize = 10.sp) }
+            selected = currentScreen == Screen.StationPromotions,
+            onClick = { onTabSelected(Screen.StationPromotions) },
+            icon = { Icon(Icons.Default.Star, null) },
+            label = { Text("Promoções", fontSize = 10.sp) }
         )
 
         NavigationBarItem(
@@ -1597,4 +812,850 @@ fun isPromoLastDay(rawEndDate: String?): Boolean {
         false
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StationPromotionsScreen(
+    viewModel: PrecoNaBombaViewModel
+) {
+    val context = LocalContext.current
+    var isAddPromoOpen by remember { mutableStateOf(false) }
+    var editingPromo by remember { mutableStateOf<PromoItem?>(null) }
+    var isUpgradeOfferOpen by remember { mutableStateOf(false) }
+
+    var deactivatingPromo by remember { mutableStateOf<PromoItem?>(null) }
+    var showDeactivateDialog by remember { mutableStateOf(false) }
+    var selectedJustificationIndex by remember { mutableStateOf(-1) }
+    var customJustificationText by remember { mutableStateOf("") }
+
+    // Subscription status
+    val planState by viewModel.ownerStationPlan.collectAsState()
+    val promos by viewModel.promoList.collectAsState()
+
+    Scaffold(
+        topBar = {
+            TopAppBar(
+                title = { Text("Gerenciar Promoções", fontSize = 18.sp, fontWeight = FontWeight.Bold, color = Color.White) },
+                navigationIcon = {
+                    IconButton(onClick = { viewModel.navigateTo(Screen.MainStationHome) }) {
+                        Icon(Icons.Default.ArrowBack, "Voltar", tint = Color.White)
+                    }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.primary)
+            )
+        },
+        bottomBar = {
+            StationBottomNavigationBar(Screen.StationPromotions) { screen ->
+                viewModel.navigateTo(screen)
+            }
+        },
+        modifier = Modifier.testTag("station_promotions_screen")
+    ) { innerPadding ->
+        if (planState == "Conta Premium") {
+            // Premium/Partner Screen: Full active promotion control
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(vertical = 16.dp, horizontal = 20.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Header card showcasing partner status
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)),
+                    border = BorderStroke(1.5.dp, Color(0xFF22C55E))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .background(Color(0xFF22C55E), CircleShape)
+                                .padding(8.dp)
+                        ) {
+                            Icon(Icons.Default.Check, "Ativo", tint = Color.White, modifier = Modifier.size(18.dp))
+                        }
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text("Painel de Parceiro Ativo ✨", fontWeight = FontWeight.Bold, fontSize = 14.sp, color = Color(0xFF15803D))
+                            Text("Publique promoções de combustíveis, itens de conveniência ou serviços gerais da sua loja diretamente para milhares de motoristas.", fontSize = 11.sp, color = Color(0xFF166534))
+                        }
+                    }
+                }
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Default.AddCircle,
+                            contentDescription = "Gerenciar Promoções",
+                            tint = Color(0xFF2563EB),
+                            modifier = Modifier.size(24.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Suas Promoções", fontSize = 16.sp, fontWeight = FontWeight.Bold, color = Color.Black)
+                    }
+
+                    TextButton(onClick = {
+                        editingPromo = null
+                        isAddPromoOpen = true
+                    }) {
+                        Text("Publicar Nova", fontWeight = FontWeight.Bold, color = Color(0xFF2563EB), fontSize = 14.sp)
+                    }
+                }
+
+                val currentStationId by viewModel.currentStationId.collectAsState()
+                val currentStationName by viewModel.editStationName.collectAsState()
+                val currentStationCnpj by viewModel.editStationCNPJ.collectAsState()
+                val currentStationEmail by viewModel.editStationEmail.collectAsState()
+                
+                val currentUid = com.example.data.FirebaseManager.getCurrentUserUid() ?: ""
+                
+                val stationPromos = promos.filter { promo ->
+                    val matchesId = promo.stationId == currentStationId
+                    val matchesUid = !promo.firestoreStationId.isNullOrBlank() && (promo.firestoreStationId == currentUid)
+                    
+                    val sName = currentStationName.lowercase()
+                    val pStationName = promo.stationName.lowercase()
+                    val pStationId = promo.firestoreStationId?.lowercase() ?: ""
+                    
+                    val matchesEmail = !currentStationEmail.isNullOrBlank() && pStationId == currentStationEmail.lowercase()
+                    val matchesCnpj = !currentStationCnpj.isNullOrBlank() && pStationId == currentStationCnpj.replace(Regex("[^0-9]"), "")
+                    
+                    val isCohabStation = sName.contains("cohab") || sName.contains("cohab 3") || sName.contains("cohab iii")
+                    val isCohabPromo = pStationId.contains("cohab") || pStationName.contains("cohab") || promo.title.lowercase().contains("cohab") || (promo.description?.lowercase() ?: "").contains("cohab")
+                    val cohabMatch = isCohabStation && isCohabPromo
+                    
+                    val matchesFuzzyName = pStationId.isNotEmpty() && (sName.contains(pStationId) || pStationId.contains(sName))
+                    val matchesFuzzyStationName = sName.contains(pStationName) || pStationName.contains(sName)
+                    
+                    matchesId || matchesUid || matchesEmail || matchesCnpj || cohabMatch || matchesFuzzyName || matchesFuzzyStationName
+                }
+
+                if (stationPromos.isEmpty()) {
+                    Card(
+                        modifier = Modifier.fillMaxWidth().padding(top = 8.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = CardDefaults.cardColors(containerColor = Color(0xFFF8FAFC)),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(36.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.Star, "Vazio", tint = Color.LightGray, modifier = Modifier.size(48.dp).padding(bottom = 12.dp))
+                                Text(
+                                    text = "Nenhuma promoção cadastrada ainda.\nToque em 'Publicar Nova' acima para começar!",
+                                    fontSize = 13.sp,
+                                    color = Color.Gray,
+                                    textAlign = TextAlign.Center,
+                                    lineHeight = 18.sp
+                                )
+                            }
+                        }
+                    }
+                } else {
+                    stationPromos.forEach { item ->
+                        val displayStart = formatBraDate(item.startDate)
+                        val displayEnd = formatBraDate(item.endDate)
+                        val expired = isPromoExpired(item.endDate)
+
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(16.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color.White),
+                            border = BorderStroke(1.dp, if (expired) Color(0xFFFCA5A5) else Color(0xFFE2E8F0)),
+                            elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+                        ) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(16.dp)
+                            ) {
+                                // Row 1: Icon, Title & Description, Price
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.Top
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .size(46.dp)
+                                            .background(
+                                                if (expired) Color(0xFFFEF2F2) else Color(0xFFEFF6FF),
+                                                RoundedCornerShape(10.dp)
+                                            ),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Icon(
+                                            imageVector = when (item.category) {
+                                                "Combustível" -> Icons.Default.Star
+                                                "Conveniência" -> Icons.Default.ShoppingCart
+                                                "Serviços" -> Icons.Default.Build
+                                                else -> Icons.Default.ShoppingCart
+                                            },
+                                            contentDescription = null,
+                                            tint = if (expired) Color(0xFFEF4444) else Color(0xFF2563EB),
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+
+                                    Spacer(modifier = Modifier.width(12.dp))
+
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = item.title,
+                                            fontWeight = FontWeight.Bold,
+                                            fontSize = 15.sp,
+                                            color = Color(0xFF0F172A)
+                                        )
+                                        if (!item.description.isNullOrEmpty()) {
+                                            Text(
+                                                text = item.description,
+                                                fontSize = 13.sp,
+                                                color = Color(0xFF64748B),
+                                                modifier = Modifier.padding(top = 2.dp)
+                                            )
+                                        }
+                                    }
+
+                                    Spacer(modifier = Modifier.width(8.dp))
+
+                                    Text(
+                                        text = item.value,
+                                        fontWeight = FontWeight.Black,
+                                        color = if (expired) Color(0xFF94A3B8) else Color(0xFF2563EB),
+                                        fontSize = 16.sp
+                                    )
+                                }
+
+                                Spacer(modifier = Modifier.height(12.dp))
+
+                                // Subtle separator line
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .height(1.dp)
+                                        .background(Color(0xFFF1F5F9))
+                                )
+
+                                Spacer(modifier = Modifier.height(8.dp))
+
+                                // Row 2: Date period & Action Buttons
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.SpaceBetween
+                                ) {
+                                    Column(
+                                        modifier = Modifier.weight(1f, fill = false),
+                                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        Row(
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.DateRange,
+                                                contentDescription = null,
+                                                tint = Color(0xFF64748B),
+                                                modifier = Modifier.size(14.dp)
+                                            )
+                                            Text(
+                                                text = if (displayStart.isNotEmpty() && displayEnd.isNotEmpty()) {
+                                                    "$displayStart até $displayEnd"
+                                                } else {
+                                                    "Período indeterminado"
+                                                },
+                                                fontSize = 12.sp,
+                                                color = Color(0xFF64748B)
+                                            )
+                                        }
+                                        if (item.isDeactivated) {
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Box(
+                                                    modifier = Modifier
+                                                        .background(Color(0xFFFEF2F2), RoundedCornerShape(6.dp))
+                                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                                ) {
+                                                    Text(
+                                                        text = "Encerrada",
+                                                        fontSize = 11.sp,
+                                                        fontWeight = FontWeight.Bold,
+                                                        color = Color(0xFFEF4444)
+                                                    )
+                                                }
+                                                if (!item.deactivationJustification.isNullOrBlank()) {
+                                                    Text(
+                                                        text = item.deactivationJustification,
+                                                        fontSize = 11.sp,
+                                                        color = Color(0xFFEF4444),
+                                                        fontWeight = FontWeight.Medium
+                                                    )
+                                                }
+                                            }
+                                        } else if (expired) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .background(Color(0xFFF3F4F6), RoundedCornerShape(6.dp))
+                                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                                            ) {
+                                                Text(
+                                                    text = "Expirada",
+                                                    fontSize = 10.sp,
+                                                    fontWeight = FontWeight.Bold,
+                                                    color = Color(0xFF6B7280)
+                                                )
+                                            }
+                                        }
+                                    }
+
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                                    ) {
+                                        if (!item.isDeactivated && !expired) {
+                                            IconButton(
+                                                onClick = {
+                                                    deactivatingPromo = item
+                                                    showDeactivateDialog = true
+                                                },
+                                                modifier = Modifier.size(36.dp)
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.Close,
+                                                    contentDescription = "Encerrar",
+                                                    tint = Color(0xFFEF4444),
+                                                    modifier = Modifier.size(20.dp)
+                                                )
+                                            }
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                editingPromo = item
+                                                isAddPromoOpen = true
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Edit,
+                                                contentDescription = "Editar",
+                                                tint = Color(0xFF2563EB),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+
+                                        IconButton(
+                                            onClick = {
+                                                viewModel.deletePromotion(item)
+                                                Toast.makeText(context, "Promoção excluída com sucesso!", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.size(36.dp)
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Delete,
+                                                contentDescription = "Excluir",
+                                                tint = Color(0xFF94A3B8),
+                                                modifier = Modifier.size(20.dp)
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        } else {
+            // Conta Pro / Non-Partner Upgrade Screen (Inspirational, high-fidelity landing page!)
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .verticalScroll(rememberScrollState())
+                    .padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center
+            ) {
+                // Large attractive Premium Diamond Icon / Badge
+                Box(
+                    modifier = Modifier
+                        .size(90.dp)
+                        .background(
+                            brush = androidx.compose.ui.graphics.Brush.linearGradient(
+                                colors = listOf(Color(0xFF3B82F6), Color(0xFF1D4ED8))
+                            ),
+                            shape = CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Star,
+                        contentDescription = "Premium Feature",
+                        tint = Color.White,
+                        modifier = Modifier.size(46.dp)
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                Text(
+                    text = "Área de Promoções e Parcerias",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.ExtraBold,
+                    color = Color(0xFF0F172A),
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Lançar cupons e vantagens diretamente no mapa dos motoristas é um recurso exclusivo das redes parceiras.",
+                    fontSize = 14.sp,
+                    color = Color(0xFF64748B),
+                    textAlign = TextAlign.Center,
+                    lineHeight = 22.sp,
+                    modifier = Modifier.padding(horizontal = 8.dp)
+                )
+
+                Spacer(modifier = Modifier.height(32.dp))
+
+                // Beautiful custom bulleted cards for premium features
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    PremiumBenefitRow(
+                        title = "Cupons de desconto no mapa",
+                        desc = "Seus cupons de combustível ou conveniência aparecem para motoristas rodando próximos."
+                    )
+                    PremiumBenefitRow(
+                        title = "Destaque Visual & Selo Parceiro 💎",
+                        desc = "Seu posto ganha um selo diferenciado dourado no mapa, com prioridade de ranqueamento."
+                    )
+                    PremiumBenefitRow(
+                        title = "Atração de Clientes 4x Maior",
+                        desc = "Estabelecimentos parceiros têm aumento comprovado de motoristas por conta de promoções exclusivas."
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(36.dp))
+
+                // Beautiful Call to Action buy/activation button
+                Button(
+                    onClick = {
+                        viewModel.ownerStationPlan.value = "Conta Premium"
+                        Toast.makeText(context, "Parabéns! Plano Parceiro Premium ativado com sucesso! 🎉", Toast.LENGTH_LONG).show()
+                    },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color(0xFF1E3A8A),
+                        contentColor = Color.White
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
+                ) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        Text("Seja Parceiro Premium", fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Icon(Icons.Default.Star, null, tint = Color(0xFFFBBF24))
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = "Ativação instantânea • Sem fidelidade contratual por R$ 99,90/mês",
+                    fontSize = 11.sp,
+                    color = Color(0xFF64748B),
+                    textAlign = TextAlign.Center
+                )
+            }
+        }
+    }
+
+    // Deactivation Dialog
+    if (showDeactivateDialog && deactivatingPromo != null) {
+        val justifications = listOf(
+            "Estoque esgotado (lote promocional finalizado)",
+            "Aguardando reabastecimento",
+            "Meta de vendas da campanha atingida",
+            "Encerramento antecipado por decisão do posto",
+            "Sistema de desconto fora do ar temporariamente",
+            "Brindes ou itens da promoção esgotados",
+            "Outro motivo (justificativa digitada pelo posto)"
+        )
+
+        AlertDialog(
+            onDismissRequest = {
+                showDeactivateDialog = false
+                selectedJustificationIndex = -1
+                customJustificationText = ""
+            },
+            title = {
+                Text(
+                    text = "Encerrar Promoção",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color(0xFF0F172A)
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    Text(
+                        text = "Selecione uma justificativa para encerrar a promoção \"${deactivatingPromo?.title}\":",
+                        fontSize = 13.sp,
+                        color = Color(0xFF475569)
+                    )
+
+                    justifications.forEachIndexed { index, option ->
+                        val isSelected = selectedJustificationIndex == index
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { selectedJustificationIndex = index }
+                                .padding(vertical = 4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = isSelected,
+                                onClick = { selectedJustificationIndex = index }
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = option,
+                                fontSize = 13.sp,
+                                color = Color(0xFF1E293B)
+                            )
+                        }
+                    }
+
+                    if (selectedJustificationIndex == justifications.lastIndex) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = "Digite o motivo personalizado:",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B)
+                        )
+                        OutlinedTextField(
+                            value = customJustificationText,
+                            onValueChange = { customJustificationText = it },
+                            placeholder = { Text("Justificativa...", color = Color(0xFF94A3B8), fontSize = 13.sp) },
+                            modifier = Modifier.fillMaxWidth(),
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 13.sp),
+                            shape = RoundedCornerShape(10.dp)
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val finalReason = if (selectedJustificationIndex == justifications.lastIndex) {
+                            customJustificationText.trim()
+                        } else if (selectedJustificationIndex >= 0) {
+                            justifications[selectedJustificationIndex]
+                        } else {
+                            ""
+                        }
+
+                        if (finalReason.isEmpty()) {
+                            Toast.makeText(context, "Por favor, defina uma justificativa.", Toast.LENGTH_SHORT).show()
+                        } else {
+                            deactivatingPromo?.let {
+                                viewModel.deactivatePromotion(it, finalReason)
+                                Toast.makeText(context, "Promoção encerrada com sucesso!", Toast.LENGTH_SHORT).show()
+                            }
+                            showDeactivateDialog = false
+                            selectedJustificationIndex = -1
+                            customJustificationText = ""
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFEF4444)),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text("Confirmar Encerramento", color = Color.White, fontSize = 13.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showDeactivateDialog = false
+                        selectedJustificationIndex = -1
+                        customJustificationText = ""
+                    }
+                ) {
+                    Text("Cancelar", color = Color(0xFF64748B), fontSize = 13.sp)
+                }
+            },
+            shape = RoundedCornerShape(20.dp),
+            containerColor = Color.White
+        )
+    }
+
+    // Add Promo Dialog
+    if (isAddPromoOpen) {
+        val initStart = if (editingPromo != null) formatBraDate(editingPromo?.startDate) else ""
+        val initEnd = if (editingPromo != null) formatBraDate(editingPromo?.endDate) else ""
+        val initPrice = if (editingPromo != null) {
+            editingPromo?.price?.let { if (it > 0.0) String.format(java.util.Locale.US, "%.2f", it).replace('.', ',') else "" } ?: ""
+        } else ""
+
+        var promoTitle by remember(editingPromo) { mutableStateOf(editingPromo?.title ?: "") }
+        var promoDesc by remember(editingPromo) { mutableStateOf(editingPromo?.description ?: "") }
+        var promoPriceStr by remember(editingPromo) { mutableStateOf(initPrice) }
+        var promoCat by remember(editingPromo) { mutableStateOf(editingPromo?.category ?: "Conveniência") }
+        var promoStartDate by remember(editingPromo) { mutableStateOf(initStart) }
+        var promoEndDate by remember(editingPromo) { mutableStateOf(initEnd) }
+        var isDropdownExpanded by remember { mutableStateOf(false) }
+
+        val categories = listOf("Conveniência", "Combustível", "Serviços")
+        val calendar = java.util.Calendar.getInstance()
+
+        fun showDatePicker(onDateSelected: (String) -> Unit) {
+            android.app.DatePickerDialog(
+                context,
+                { _, year, month, dayOfMonth ->
+                    val formatted = String.format("%02d/%02d/%04d", dayOfMonth, month + 1, year)
+                    onDateSelected(formatted)
+                },
+                calendar.get(java.util.Calendar.YEAR),
+                calendar.get(java.util.Calendar.MONTH),
+                calendar.get(java.util.Calendar.DAY_OF_MONTH)
+            ).show()
+        }
+
+        fun formatBraDateToIso(braDate: String): String {
+            return try {
+                if (braDate.contains("-")) return braDate
+                val formatBra = java.text.SimpleDateFormat("dd/MM/yyyy", java.util.Locale.US)
+                val formatIso = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+                val parsed = formatBra.parse(braDate)
+                if (parsed != null) formatIso.format(parsed) else braDate
+            } catch (e: Exception) {
+                braDate
+            }
+        }
+
+        AlertDialog(
+            onDismissRequest = { isAddPromoOpen = false },
+            title = {
+                Text(
+                    text = if (editingPromo == null) "Publicar Nova Promoção" else "Editar Promoção",
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = Color.Black
+                )
+            },
+            text = {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    OutlinedTextField(
+                        value = promoTitle,
+                        onValueChange = { promoTitle = it },
+                        label = { Text("Nome da Promoção ou Oferta", fontSize = 13.sp) },
+                        modifier = Modifier.fillMaxWidth().testTag("dialog_promo_title")
+                    )
+
+                    OutlinedTextField(
+                        value = promoDesc,
+                        onValueChange = { promoDesc = it },
+                        label = { Text("Breve Descrição / Destaques da Oferta", fontSize = 13.sp) },
+                        maxLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        OutlinedTextField(
+                            value = promoPriceStr,
+                            onValueChange = { promoPriceStr = it },
+                            label = { Text("Preço R$ (Opcional)", fontSize = 13.sp) },
+                            placeholder = { Text("Ex: 15,90") },
+                            modifier = Modifier.weight(1f).testTag("dialog_promo_price"),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Number
+                            )
+                        )
+
+                        Box(modifier = Modifier.weight(1f)) {
+                            OutlinedTextField(
+                                value = promoCat,
+                                onValueChange = {},
+                                label = { Text("Categoria", fontSize = 13.sp) },
+                                readOnly = true,
+                                trailingIcon = {
+                                    IconButton(onClick = { isDropdownExpanded = !isDropdownExpanded }) {
+                                        Icon(
+                                            imageVector = if (isDropdownExpanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
+                                            contentDescription = null
+                                        )
+                                    }
+                                },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+
+                            DropdownMenu(
+                                expanded = isDropdownExpanded,
+                                onDismissRequest = { isDropdownExpanded = false }
+                            ) {
+                                categories.forEach { cat ->
+                                    DropdownMenuItem(
+                                        text = { Text(cat) },
+                                        onClick = {
+                                            promoCat = cat
+                                            isDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { showDatePicker { promoStartDate = it } }
+                        ) {
+                            OutlinedTextField(
+                                value = promoStartDate,
+                                onValueChange = {},
+                                label = { Text("Início", fontSize = 13.sp) },
+                                readOnly = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = false,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = Color.Black,
+                                    disabledBorderColor = Color.Gray,
+                                    disabledLabelColor = Color.Gray
+                                )
+                            )
+                        }
+
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable { showDatePicker { promoEndDate = it } }
+                        ) {
+                            OutlinedTextField(
+                                value = promoEndDate,
+                                onValueChange = {},
+                                label = { Text("Término", fontSize = 13.sp) },
+                                readOnly = true,
+                                modifier = Modifier.fillMaxWidth(),
+                                enabled = false,
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    disabledTextColor = Color.Black,
+                                    disabledBorderColor = Color.Gray,
+                                    disabledLabelColor = Color.Gray
+                                )
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (promoTitle.trim().isEmpty()) {
+                            Toast.makeText(context, "Nome é obrigatório!", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        val price = promoPriceStr.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        val isoStart = formatBraDateToIso(promoStartDate)
+                        val isoEnd = formatBraDateToIso(promoEndDate)
+
+                        viewModel.addNewPromotion(
+                            title = promoTitle,
+                            description = promoDesc,
+                            price = price,
+                            category = promoCat,
+                            startDate = isoStart,
+                            endDate = isoEnd,
+                            icon = when (promoCat) {
+                                "Combustível" -> "local_gas_station"
+                                "Conveniência" -> "shopping_basket"
+                                "Serviços" -> "build"
+                                else -> "sell"
+                            },
+                            docId = editingPromo?.docId
+                        )
+                        isAddPromoOpen = false
+                    },
+                    modifier = Modifier.height(48.dp),
+                    shape = RoundedCornerShape(10.dp)
+                ) {
+                    Text(if (editingPromo == null) "Publicar" else "Salvar Alterações", fontSize = 14.sp)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { isAddPromoOpen = false }) {
+                    Text("Cancelar", fontSize = 14.sp)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun PremiumBenefitRow(title: String, desc: String) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFFF1F5F9), RoundedCornerShape(12.dp))
+            .padding(14.dp),
+        verticalAlignment = Alignment.Top,
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .size(24.dp)
+                .background(Color(0xFF1E3A8A), CircleShape),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Default.Check,
+                contentDescription = null,
+                tint = Color.White,
+                modifier = Modifier.size(14.dp)
+            )
+        }
+        Column {
+            Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(text = desc, fontSize = 12.sp, color = Color(0xFF64748B), lineHeight = 16.sp)
+        }
+    }
+}
+
 

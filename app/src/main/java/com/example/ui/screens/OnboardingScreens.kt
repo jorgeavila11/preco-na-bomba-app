@@ -993,9 +993,7 @@ fun UserLoginScreen(viewModel: PrecoNaBombaViewModel) {
                             // Real Authentication using Firebase Auth with registration verification
                             viewModel.login(targetEmail, targetPassword) { success, error ->
                                 isLoading = false
-                                if (success) {
-                                    Toast.makeText(context, "Login efetuado com sucesso (Firebase)!", Toast.LENGTH_SHORT).show()
-                                } else {
+                                if (!success) {
                                     // Real error printed to screen
                                     Toast.makeText(
                                         context,

@@ -26,6 +26,7 @@ sealed interface Screen {
     object PaymentCheckout : Screen // Plan checkout (Monthly vs Annual, PIX vs Card)
     object PremiumPromotions : Screen // Promo items (Tudo, Combustível, Conveniência, Serviços)
     object MainStationHome : Screen // Owner Dashboard (Edit live pump prices, manage promos)
+    object StationPromotions : Screen // Promotion Management Screen for Premium Station Owners
     object StationProfileArea : Screen // Station legal info (CNPJ, Razão Social, logout)
 }
 
@@ -1035,7 +1036,7 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
         FirebaseManager.signOut {
             _isUserLoggedInFlow.value = false
             _userEmailFlow.value = null
-            navigateTo(Screen.OnboardingRoleSelection)
+            navigateTo(Screen.UserLogin)
             onComplete()
         }
     }

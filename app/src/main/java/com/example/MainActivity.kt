@@ -99,6 +99,9 @@ class MainActivity : ComponentActivity() {
                         Screen.MainStationHome -> {
                             MainStationHome(viewModel = viewModel)
                         }
+                        Screen.StationPromotions -> {
+                            StationPromotionsScreen(viewModel = viewModel)
+                        }
                         Screen.StationProfileArea -> {
                             StationProfileArea(viewModel = viewModel)
                         }
