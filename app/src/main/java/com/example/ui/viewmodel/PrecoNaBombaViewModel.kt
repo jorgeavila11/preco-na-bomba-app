@@ -28,6 +28,7 @@ sealed interface Screen {
     object MainStationHome : Screen // Owner Dashboard (Edit live pump prices, manage promos)
     object StationPromotions : Screen // Promotion Management Screen for Premium Station Owners
     object StationProfileArea : Screen // Station legal info (CNPJ, Razão Social, logout)
+    object StationSales : Screen // Beautiful Sales analytics with charts and promo data
 }
 
 class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : ViewModel() {

@@ -28,6 +28,11 @@ import com.example.ui.viewmodel.PrecoNaBombaViewModel
 import com.example.ui.viewmodel.PromoItem
 import com.example.ui.viewmodel.Screen
 import com.example.ui.viewmodel.StationSaveState
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.Canvas
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -715,8 +720,8 @@ fun StationBottomNavigationBar(
         )
 
         NavigationBarItem(
-            selected = false,
-            onClick = { /* Simulated actions */ },
+            selected = currentScreen == Screen.StationSales,
+            onClick = { onTabSelected(Screen.StationSales) },
             icon = { Icon(Icons.Default.List, null) },
             label = { Text("Vendas", fontSize = 10.sp) }
         )
@@ -1654,6 +1659,852 @@ fun PremiumBenefitRow(title: String, desc: String) {
             Text(text = title, fontSize = 14.sp, fontWeight = FontWeight.Bold, color = Color(0xFF1E293B))
             Spacer(modifier = Modifier.height(2.dp))
             Text(text = desc, fontSize = 12.sp, color = Color(0xFF64748B), lineHeight = 16.sp)
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun StationSalesScreen(viewModel: PrecoNaBombaViewModel) {
+    val context = LocalContext.current
+    val currentScreen by viewModel.currentScreen.collectAsState()
+
+    var timeRange by remember { mutableStateOf("Últimos 30 dias") }
+    var isDropdownExpanded by remember { mutableStateOf(false) }
+
+    // Dynamic data based on selection
+    val totalSales = when (timeRange) {
+        "Últimos 30 dias" -> "R$ 142.580"
+        "Últimos 7 dias" -> "R$ 38.920"
+        else -> "R$ 5.840"
+    }
+    val totalSalesFraction = ",00"
+    val performancePercentage = when (timeRange) {
+        "Últimos 30 dias" -> "+12.4%"
+        "Últimos 7 dias" -> "+8.7%"
+        else -> "+4.2%"
+    }
+    val performanceSub = when (timeRange) {
+        "Últimos 30 dias" -> "Performance acima da média mensal"
+        "Últimos 7 dias" -> "Performance acima da semana anterior"
+        else -> "Performance diária dentro do esperado"
+    }
+
+    val ticketMedioVal = when (timeRange) {
+        "Últimos 30 dias" -> "R$ 214,50"
+        "Últimos 7 dias" -> "R$ 195,10"
+        else -> "R$ 180,20"
+    }
+    val ticketMedioSub = when (timeRange) {
+        "Últimos 30 dias" -> "⬇ 2.1% vs ant."
+        "Últimos 7 dias" -> "⬆ 1.5% vs ant."
+        else -> "⬆ 0.8% vs ant."
+    }
+    val ticketMedioColor = when (timeRange) {
+        "Últimos 30 dias" -> Color(0xFFEF4444) // red
+        else -> Color(0xFF2563EB) // blue-green
+    }
+
+    val conversionVal = when (timeRange) {
+        "Últimos 30 dias" -> "34,2%"
+        "Últimos 7 dias" -> "31,8%"
+        else -> "29,5%"
+    }
+    val conversionSub = when (timeRange) {
+        "Últimos 30 dias" -> "⬆ 5.4% vs ant."
+        "Últimos 7 dias" -> "⬆ 2.1% vs ant."
+        else -> "⬇ 1.2% vs ant."
+    }
+    val conversionColor = when (timeRange) {
+        "Hoje" -> Color(0xFFEF4444) // red
+        else -> Color(0xFF2563EB) // blue-green
+    }
+
+    // Pie chart values (combustível, conveniência, serviços)
+    val combustivelPct = when (timeRange) {
+        "Últimos 30 dias" -> 0.65f
+        "Últimos 7 dias" -> 0.68f
+        else -> 0.72f
+    }
+    val convenienciaPct = when (timeRange) {
+        "Últimos 30 dias" -> 0.20f
+        "Últimos 7 dias" -> 0.18f
+        else -> 0.15f
+    }
+    val servicosPct = when (timeRange) {
+        "Últimos 30 dias" -> 0.15f
+        "Últimos 7 dias" -> 0.14f
+        else -> 0.13f
+    }
+
+    // Promo list data
+    val promo1Value = when (timeRange) {
+        "Últimos 30 dias" -> "R$ 12.400"
+        "Últimos 7 dias" -> "R$ 3.850"
+        else -> "R$ 680"
+    }
+    val promo1Progress = when (timeRange) {
+        "Últimos 30 dias" -> 0.75f
+        "Últimos 7 dias" -> 0.55f
+        else -> 0.34f
+    }
+    val promo1Counter = when (timeRange) {
+        "Últimos 30 dias" -> "750 cupons usados"
+        "Últimos 7 dias" -> "230 cupons usados"
+        else -> "34 cupons usados"
+    }
+
+    val promo2Value = when (timeRange) {
+        "Últimos 30 dias" -> "R$ 4.250"
+        "Últimos 7 dias" -> "R$ 1.150"
+        else -> "R$ 240"
+    }
+    val promo2Progress = when (timeRange) {
+        "Últimos 30 dias" -> 0.40f
+        "Últimos 7 dias" -> 0.25f
+        else -> 0.16f
+    }
+    val promo2Counter = when (timeRange) {
+        "Últimos 30 dias" -> "320 pedidos"
+        "Últimos 7 dias" -> "92 pedidos"
+        else -> "16 pedidos"
+    }
+
+    Scaffold(
+        topBar = {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(Color.White)
+                    .statusBarsPadding()
+                    .padding(horizontal = 16.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    IconButton(
+                        onClick = { viewModel.navigateTo(Screen.MainStationHome) },
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.ArrowBack,
+                            contentDescription = "Voltar",
+                            tint = Color(0xFF1E293B),
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Vendas",
+                        fontSize = 20.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                }
+                IconButton(
+                    onClick = { Toast.makeText(context, "Nenhuma notificação recente.", Toast.LENGTH_SHORT).show() },
+                    modifier = Modifier.size(40.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Notifications,
+                        contentDescription = "Notificações",
+                        tint = Color(0xFF1E293B)
+                    )
+                }
+            }
+        },
+        bottomBar = {
+            StationBottomNavigationBar(
+                currentScreen = Screen.StationSales,
+                onTabSelected = { viewModel.navigateTo(it) }
+            )
+        },
+        containerColor = Color(0xFFF8FAFC)
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 16.dp, vertical = 16.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            // Dropdown Choice & Floating Action Funnel Button in a single horizontal row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                // Dropdown Box Pill
+                Box {
+                    Button(
+                        onClick = { isDropdownExpanded = true },
+                        colors = ButtonDefaults.buttonColors(containerColor = Color.White),
+                        border = BorderStroke(1.dp, Color(0xFFE2E8F0)),
+                        shape = RoundedCornerShape(12.dp),
+                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
+                        modifier = Modifier.height(44.dp)
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.DateRange,
+                                contentDescription = null,
+                                tint = Color(0xFF475569),
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Text(
+                                text = timeRange,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = Color(0xFF1E293B)
+                            )
+                            Icon(
+                                imageVector = Icons.Default.KeyboardArrowDown,
+                                contentDescription = null,
+                                tint = Color(0xFF64748B),
+                                modifier = Modifier.size(16.dp)
+                            )
+                        }
+                    }
+
+                    DropdownMenu(
+                        expanded = isDropdownExpanded,
+                        onDismissRequest = { isDropdownExpanded = false },
+                        modifier = Modifier.background(Color.White)
+                    ) {
+                        listOf("Últimos 30 dias", "Últimos 7 dias", "Hoje").forEach { option ->
+                            DropdownMenuItem(
+                                text = { Text(option, fontWeight = FontWeight.Medium) },
+                                onClick = {
+                                    timeRange = option
+                                    isDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // Funnel indicator button circle shape matching image precisely
+                Box(
+                    modifier = Modifier
+                        .size(44.dp)
+                        .background(Color(0xFF032B70), CircleShape)
+                        .clickable {
+                            Toast.makeText(context, "Filtro avançado no plano Premium!", Toast.LENGTH_SHORT).show()
+                        },
+                    contentAlignment = Alignment.Center
+                ) {
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(3.dp)
+                    ) {
+                        Box(modifier = Modifier.width(14.dp).height(2.dp).background(Color.White))
+                        Box(modifier = Modifier.width(10.dp).height(2.dp).background(Color.White))
+                        Box(modifier = Modifier.width(6.dp).height(2.dp).background(Color.White))
+                    }
+                }
+            }
+
+            // Total de Vendas Card - linear gradient blue box
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(20.dp),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            Brush.linearGradient(
+                                colors = listOf(Color(0xFF0F42AD), Color(0xFF02256B))
+                            )
+                        )
+                        .padding(20.dp)
+                ) {
+                    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = "Total de Vendas",
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color.White.copy(alpha = 0.9f)
+                            )
+                            Box(
+                                modifier = Modifier
+                                    .background(Color(0xFFFEF08A), RoundedCornerShape(12.dp))
+                                    .padding(horizontal = 8.dp, vertical = 4.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = performancePercentage,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF713F12)
+                                )
+                            }
+                        }
+
+                        // Large formatted sales number
+                        Row(
+                            verticalAlignment = Alignment.Bottom,
+                            horizontalArrangement = Arrangement.spacedBy(2.dp)
+                        ) {
+                            Text(
+                                text = totalSales,
+                                fontSize = 32.sp,
+                                fontWeight = FontWeight.Black,
+                                color = Color.White
+                            )
+                            Text(
+                                text = totalSalesFraction,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.padding(bottom = 4.dp)
+                            )
+                        }
+
+                        // Bottom trend indicator
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.PlayArrow,
+                                contentDescription = null,
+                                tint = Color.White.copy(alpha = 0.8f),
+                                modifier = Modifier.size(12.dp)
+                            )
+                            Text(
+                                text = performanceSub,
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Normal,
+                                color = Color.White.copy(alpha = 0.85f)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Ticket Médio and Conversão dual card columns row
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                // Ticket Médio Card
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        Text(
+                            text = "TICKET MÉDIO",
+                            fontSize = 10.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF64748B),
+                            letterSpacing = 0.5.sp
+                        )
+                        Text(
+                            text = ticketMedioVal,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF0F172A)
+                        )
+                        Text(
+                            text = ticketMedioSub,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold,
+                            color = ticketMedioColor
+                        )
+                    }
+                }
+
+                // Conversão Card with left golden/yellow accent strip
+                Card(
+                    modifier = Modifier.weight(1f),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(16.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Box(modifier = Modifier.fillMaxWidth().height(IntrinsicSize.Min)) {
+                        // Left 4.dp gold accent border strip internally embedded inside card
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.CenterStart)
+                                .fillMaxHeight()
+                                .width(4.dp)
+                                .background(Color(0xFFEAB308))
+                        )
+                        // Content column
+                        Column(
+                            modifier = Modifier.padding(start = 16.dp, top = 16.dp, bottom = 16.dp, end = 12.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Text(
+                                text = "CONVERSÃO",
+                                fontSize = 10.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF64748B),
+                                letterSpacing = 0.5.sp
+                            )
+                            Text(
+                                text = conversionVal,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = conversionSub,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.SemiBold,
+                                color = conversionColor
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Vendas por Categoria Card with real canvas donut chart
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+            ) {
+                Column(
+                    modifier = Modifier.padding(18.dp),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
+                    // Title Header with blue vertical bar
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .width(4.dp)
+                                .height(16.dp)
+                                .background(Color(0xFF033F9E), RoundedCornerShape(2.dp))
+                        )
+                        Text(
+                            text = "Vendas por Categoria",
+                            fontSize = 15.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF0F172A)
+                        )
+                    }
+
+                    // Content layout dual columns: left side Canvas chart, right side Legends
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        // Double overlapping boxes for Donut center text
+                        Box(
+                            modifier = Modifier
+                                .size(130.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            // Donut canvas drawing
+                            Canvas(modifier = Modifier.size(110.dp)) {
+                                val strokeWidthPx = 18.dp.toPx()
+                                val parentSize = size
+                                val boxRadius = Math.min(parentSize.width, parentSize.height) - strokeWidthPx
+
+                                // Legend segments
+                                // segment 1: Combustivel
+                                drawArc(
+                                    color = Color(0xFF033F9E),
+                                    startAngle = -90f,
+                                    sweepAngle = 360f * combustivelPct,
+                                    useCenter = false,
+                                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Butt)
+                                )
+                                // segment 2: Conveniência
+                                drawArc(
+                                    color = Color(0xFFFACC15),
+                                    startAngle = -90f + (360f * combustivelPct),
+                                    sweepAngle = 360f * convenienciaPct,
+                                    useCenter = false,
+                                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Butt)
+                                )
+                                // segment 3: Serviços
+                                drawArc(
+                                    color = Color(0xFFCBD5E1),
+                                    startAngle = -90f + (360f * combustivelPct) + (360f * convenienciaPct),
+                                    sweepAngle = 360f * servicosPct,
+                                    useCenter = false,
+                                    style = Stroke(width = strokeWidthPx, cap = StrokeCap.Butt)
+                                )
+                            }
+
+                            // Inner central text card overlap
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(2.dp)
+                            ) {
+                                Text(
+                                    text = "TOTAL",
+                                    fontSize = 9.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF64748B),
+                                    letterSpacing = 0.5.sp
+                                )
+                                Text(
+                                    text = "100%",
+                                    fontSize = 15.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = Color(0xFF0F172A)
+                                )
+                            }
+                        }
+
+                        // Right hand Legends matching the original layout beautifully
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            modifier = Modifier.padding(start = 16.dp)
+                        ) {
+                            // Fuel category row
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .size(10.dp)
+                                        .background(Color(0xFF033F9E), CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "COMBUSTÍVEL",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF475569)
+                                    )
+                                    Text(
+                                        text = String.format("%.0f%%", combustivelPct * 100),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1E293B)
+                                    )
+                                }
+                            }
+
+                            // Convenience retail row
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .size(10.dp)
+                                        .background(Color(0xFFFACC15), CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "CONVENIÊNCIA",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF475569)
+                                    )
+                                    Text(
+                                        text = String.format("%.0f%%", convenienciaPct * 100),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1E293B)
+                                    )
+                                }
+                            }
+
+                            // Auto/Mechanical Service row
+                            Row(verticalAlignment = Alignment.Top) {
+                                Box(
+                                    modifier = Modifier
+                                        .padding(top = 4.dp)
+                                        .size(10.dp)
+                                        .background(Color(0xFFCBD5E1), CircleShape)
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Column {
+                                    Text(
+                                        text = "SERVIÇOS",
+                                        fontSize = 10.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF475569)
+                                    )
+                                    Text(
+                                        text = String.format("%.0f%%", servicosPct * 100),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = Color(0xFF1E293B)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // Desempenho de Promoções title + list
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "Desempenho de Promoções",
+                        fontSize = 16.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = Color(0xFF0F172A)
+                    )
+                    TextButton(
+                        onClick = { viewModel.navigateTo(Screen.StationPromotions) },
+                        contentPadding = PaddingValues(0.dp)
+                    ) {
+                        Text(
+                            text = "Ver todas",
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF033F9E)
+                        )
+                    }
+                }
+
+                // Promo Item 1 Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                // Yellow background icon frame (matches gas theme)
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(Color(0xFFFDE047), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.Star,
+                                        contentDescription = null,
+                                        tint = Color(0xFF713F12),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Gasolina Premium - R$0,20 OFF",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1
+                                )
+                            }
+                            Text(
+                                text = promo1Value,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF033F9E)
+                            )
+                        }
+
+                        // Progress slider indicator
+                        LinearProgressIndicator(
+                            progress = promo1Progress,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = Color(0xFF033F9E),
+                            trackColor = Color(0xFFF1F5F9)
+                        )
+
+                        // Bottom counters
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = promo1Counter,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF64748B)
+                            )
+                            Text(
+                                text = "Meta: 1.000",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+
+                // Promo Item 2 Card
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(containerColor = Color.White),
+                    shape = RoundedCornerShape(14.dp),
+                    border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                // Light blue/indigo coffee icon background
+                                Box(
+                                    modifier = Modifier
+                                        .size(40.dp)
+                                        .background(Color(0xFFEFF6FF), RoundedCornerShape(8.dp)),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.ShoppingCart,
+                                        contentDescription = null,
+                                        tint = Color(0xFF1D4ED8),
+                                        modifier = Modifier.size(20.dp)
+                                    )
+                                }
+                                Spacer(modifier = Modifier.width(10.dp))
+                                Text(
+                                    text = "Combo Café + Pão de Queijo",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = Color(0xFF0F172A),
+                                    maxLines = 1
+                                )
+                            }
+                            Text(
+                                text = promo2Value,
+                                fontSize = 14.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF033F9E)
+                            )
+                        }
+
+                        // Progress slider indicator
+                        LinearProgressIndicator(
+                            progress = promo2Progress,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .height(6.dp)
+                                .clip(RoundedCornerShape(3.dp)),
+                            color = Color(0xFFFACC15),
+                            trackColor = Color(0xFFF1F5F9)
+                        )
+
+                        // Bottom counters
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = promo2Counter,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF64748B)
+                            )
+                            Text(
+                                text = "Meta: 800",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium,
+                                color = Color(0xFF64748B)
+                            )
+                        }
+                    }
+                }
+            }
+
+            // Tip Optimization Card
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color.White),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFE2E8F0))
+            ) {
+                Box(modifier = Modifier.fillMaxWidth()) {
+                    // Top gold accent line bar
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(4.dp)
+                            .background(Color(0xFFFACC15))
+                            .align(Alignment.TopCenter)
+                    )
+
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(18.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.weight(1f).padding(end = 12.dp)
+                        ) {
+                            Text(
+                                text = "Otimize seus ganhos hoje.",
+                                fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = Color(0xFF0F172A)
+                            )
+                            Text(
+                                text = "Baseado no fluxo de hoje, sugerimos ativar a promoção de 'Troca de Óleo' entre 14h e 16h.",
+                                fontSize = 12.sp,
+                                color = Color(0xFF475569),
+                                lineHeight = 16.sp
+                            )
+                        }
+
+                        // Beautiful generated oil illustration card
+                        Image(
+                            painter = painterResource(id = com.example.R.drawable.refuel_oil_tip),
+                            contentDescription = "Dica de Otimização",
+                            modifier = Modifier
+                                .size(72.dp)
+                                .clip(RoundedCornerShape(12.dp)),
+                            contentScale = androidx.compose.ui.layout.ContentScale.Crop
+                        )
+                    }
+                }
+            }
         }
     }
 }

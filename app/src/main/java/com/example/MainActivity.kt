@@ -105,6 +105,9 @@ class MainActivity : ComponentActivity() {
                         Screen.StationProfileArea -> {
                             StationProfileArea(viewModel = viewModel)
                         }
+                        Screen.StationSales -> {
+                            StationSalesScreen(viewModel = viewModel)
+                        }
                     }
                 }
             }
