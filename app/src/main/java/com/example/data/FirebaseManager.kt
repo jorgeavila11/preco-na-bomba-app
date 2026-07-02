@@ -768,4 +768,117 @@ object FirebaseManager {
             false
         }
     }
+
+    fun syncSaleToFirestore(sale: SaleItem, onComplete: (Boolean) -> Unit = {}) {
+        val firestore = firestoreInstance ?: run { onComplete(false); return }
+        val data = hashMapOf(
+            "stationId" to sale.stationId,
+            "category" to sale.category,
+            "amount" to sale.amount,
+            "date" to sale.date,
+            "timestamp" to sale.timestamp,
+            "promotionTitle" to (sale.promotionTitle ?: "")
+        )
+        firestore.collection("sales")
+            .add(data)
+            .addOnSuccessListener { docRef ->
+                Log.d(TAG, "Sale synced successfully to Firestore! Doc ID: ${docRef.id}")
+                onComplete(true)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed syncing sale: ${e.message}")
+                onComplete(false)
+            }
+    }
+
+    fun fetchSalesFromFirestore(stationId: String, onResult: (List<SaleItem>) -> Unit) {
+        val firestore = firestoreInstance ?: run { onResult(emptyList()); return }
+        firestore.collection("sales")
+            .whereEqualTo("stationId", stationId)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                val list = mutableListOf<SaleItem>()
+                for (doc in querySnapshot.documents) {
+                    val category = doc.getString("category") ?: "Conveniência"
+                    val amount = doc.getDouble("amount") ?: 0.0
+                    val date = doc.getString("date") ?: ""
+                    val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                    val promotionTitle = doc.getString("promotionTitle") ?: ""
+                    list.add(
+                        SaleItem(
+                            docId = doc.id,
+                            stationId = stationId,
+                            category = category,
+                            amount = amount,
+                            date = date,
+                            timestamp = timestamp,
+                            promotionTitle = promotionTitle
+                        )
+                    )
+                }
+                onResult(list)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed fetching sales from Firestore: ${e.message}")
+                onResult(emptyList())
+            }
+    }
+
+    fun syncRedemptionToFirestore(redemption: RedemptionItem, onComplete: (Boolean) -> Unit = {}) {
+        val firestore = firestoreInstance ?: run { onComplete(false); return }
+        val data = hashMapOf(
+            "stationId" to redemption.stationId,
+            "promotionTitle" to redemption.promotionTitle,
+            "driverEmail" to redemption.driverEmail,
+            "timestamp" to redemption.timestamp,
+            "date" to redemption.date,
+            "status" to redemption.status,
+            "redemptionCode" to redemption.redemptionCode
+        )
+        firestore.collection("redemptions")
+            .add(data)
+            .addOnSuccessListener { docRef ->
+                Log.d(TAG, "Redemption synced successfully to Firestore! Doc ID: ${docRef.id}")
+                onComplete(true)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed syncing redemption: ${e.message}")
+                onComplete(false)
+            }
+    }
+
+    fun fetchRedemptionsFromFirestore(stationId: String, onResult: (List<RedemptionItem>) -> Unit) {
+        val firestore = firestoreInstance ?: run { onResult(emptyList()); return }
+        firestore.collection("redemptions")
+            .whereEqualTo("stationId", stationId)
+            .get()
+            .addOnSuccessListener { querySnapshot ->
+                val list = mutableListOf<RedemptionItem>()
+                for (doc in querySnapshot.documents) {
+                    val promotionTitle = doc.getString("promotionTitle") ?: ""
+                    val driverEmail = doc.getString("driverEmail") ?: ""
+                    val timestamp = doc.getLong("timestamp") ?: System.currentTimeMillis()
+                    val date = doc.getString("date") ?: ""
+                    val status = doc.getString("status") ?: "Resgatado"
+                    val redemptionCode = doc.getString("redemptionCode") ?: ""
+                    list.add(
+                        RedemptionItem(
+                            docId = doc.id,
+                            stationId = stationId,
+                            promotionTitle = promotionTitle,
+                            driverEmail = driverEmail,
+                            timestamp = timestamp,
+                            date = date,
+                            status = status,
+                            redemptionCode = redemptionCode
+                        )
+                    )
+                }
+                onResult(list)
+            }
+            .addOnFailureListener { e ->
+                Log.e(TAG, "Failed fetching redemptions from Firestore: ${e.message}")
+                onResult(emptyList())
+            }
+    }
 }

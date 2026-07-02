@@ -592,7 +592,141 @@ class PrecoNaBombaViewModel(private val repository: PrecoNaBombaRepository) : Vi
         }
     }
 
+    // Dynamic Sales tracker synchronized with Firestore
+    private val _salesList = MutableStateFlow<List<SaleItem>>(emptyList())
+    val salesList: StateFlow<List<SaleItem>> = _salesList.asStateFlow()
+
+    fun fetchSales() {
+        val ownerUid = FirebaseManager.getCurrentUserUid() ?: editStationEmail.value
+        FirebaseManager.fetchSalesFromFirestore(ownerUid) { fetchedSales ->
+            if (fetchedSales.isEmpty()) {
+                seedDefaultSales(ownerUid)
+            } else {
+                _salesList.value = fetchedSales
+            }
+        }
+    }
+
+    private fun seedDefaultSales(stationId: String) {
+        val currentTime = System.currentTimeMillis()
+        val seedSales = listOf(
+            SaleItem(category = "Combustível", amount = 42500.0, date = "2026-06-10", timestamp = currentTime - 5L * 24 * 60 * 60 * 1000, stationId = stationId, promotionTitle = "Gasolina Premium - R$0,20 OFF"),
+            SaleItem(category = "Combustível", amount = 31200.0, date = "2026-06-08", timestamp = currentTime - 7L * 24 * 60 * 60 * 1000, stationId = stationId),
+            SaleItem(category = "Combustível", amount = 18977.0, date = "2026-06-14", timestamp = currentTime - 1L * 24 * 60 * 60 * 1000, stationId = stationId, promotionTitle = "Gasolina Premium - R$0,20 OFF"),
+            
+            SaleItem(category = "Conveniência", amount = 14250.0, date = "2026-06-11", timestamp = currentTime - 4L * 24 * 60 * 60 * 1000, stationId = stationId, promotionTitle = "Combo Café + Pão de Queijo"),
+            SaleItem(category = "Conveniência", amount = 10016.0, date = "2026-06-05", timestamp = currentTime - 10L * 24 * 60 * 60 * 1000, stationId = stationId),
+            SaleItem(category = "Conveniência", amount = 4250.0, date = "2026-06-15", timestamp = currentTime, stationId = stationId, promotionTitle = "Combo Café + Pão de Queijo"),
+            
+            SaleItem(category = "Serviços", amount = 11387.0, date = "2026-06-03", timestamp = currentTime - 12L * 24 * 60 * 60 * 1000, stationId = stationId),
+            SaleItem(category = "Serviços", amount = 10000.0, date = "2026-06-13", timestamp = currentTime - 2L * 24 * 60 * 60 * 1000, stationId = stationId, promotionTitle = "Troca de Óleo")
+        )
+
+        viewModelScope.launch {
+            var completedCount = 0
+            for (sale in seedSales) {
+                FirebaseManager.syncSaleToFirestore(sale) { success ->
+                    completedCount++
+                    if (completedCount == seedSales.size) {
+                        FirebaseManager.fetchSalesFromFirestore(stationId) { finalSales ->
+                            _salesList.value = finalSales
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun addNewSale(category: String, amount: Double, promotionTitle: String? = null) {
+        val ownerUid = FirebaseManager.getCurrentUserUid() ?: editStationEmail.value
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val todayStr = sdf.format(java.util.Date())
+        val newSale = SaleItem(
+            stationId = ownerUid,
+            category = category,
+            amount = amount,
+            date = todayStr,
+            timestamp = System.currentTimeMillis(),
+            promotionTitle = promotionTitle
+        )
+        viewModelScope.launch {
+            FirebaseManager.syncSaleToFirestore(newSale) { success ->
+                if (success) {
+                    fetchSales()
+                }
+            }
+        }
+    }
+
+    // Dynamic Promo Redemptions tracker synchronized with Firestore
+    private val _redemptionsList = MutableStateFlow<List<RedemptionItem>>(emptyList())
+    val redemptionsList: StateFlow<List<RedemptionItem>> = _redemptionsList.asStateFlow()
+
+    fun fetchRedemptions() {
+        val ownerUid = FirebaseManager.getCurrentUserUid() ?: editStationEmail.value
+        FirebaseManager.fetchRedemptionsFromFirestore(ownerUid) { fetchedRedemptions ->
+            if (fetchedRedemptions.isEmpty()) {
+                seedDefaultRedemptions(ownerUid)
+            } else {
+                _redemptionsList.value = fetchedRedemptions
+            }
+        }
+    }
+
+    private fun seedDefaultRedemptions(stationId: String) {
+        val currentTime = System.currentTimeMillis()
+        val seedRedemptions = listOf(
+            RedemptionItem(stationId = stationId, promotionTitle = "Gasolina Premium - R$0,20 OFF", driverEmail = "marcos.silva@gmail.com", timestamp = currentTime - 2L * 60 * 60 * 1000, date = "2026-06-15", status = "Resgatado", redemptionCode = "PNB-8429"),
+            RedemptionItem(stationId = stationId, promotionTitle = "Combo Cafe + Pao de Queijo", driverEmail = "ana.oliveira@outlook.com", timestamp = currentTime - 4L * 60 * 60 * 1000, date = "2026-06-15", status = "Utilizado", redemptionCode = "PNB-2904"),
+            RedemptionItem(stationId = stationId, promotionTitle = "Gasolina Premium - R$0,20 OFF", driverEmail = "carlos.melo@yahoo.com.br", timestamp = currentTime - 1L * 24 * 60 * 60 * 1000, date = "2026-06-14", status = "Utilizado", redemptionCode = "PNB-7182"),
+            RedemptionItem(stationId = stationId, promotionTitle = "Troca de Oleo", driverEmail = "bruna.costa@gmail.com", timestamp = currentTime - 3L * 24 * 60 * 60 * 1000, date = "2026-06-12", status = "Resgatado", redemptionCode = "PNB-5291")
+        )
+
+        viewModelScope.launch {
+            var completedCount = 0
+            for (red in seedRedemptions) {
+                FirebaseManager.syncRedemptionToFirestore(red) { success ->
+                    completedCount++
+                    if (completedCount == seedRedemptions.size) {
+                        FirebaseManager.fetchRedemptionsFromFirestore(stationId) { finalReds ->
+                            _redemptionsList.value = finalReds
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fun addNewRedemption(targetStationId: String, promotionTitle: String, onComplete: (Boolean, String) -> Unit = { _, _ -> }) {
+        val driverEmail = FirebaseManager.getCurrentUserEmail() ?: "motorista.anonimo@gmail.com"
+        val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.US)
+        val todayStr = sdf.format(java.util.Date())
+        val codeNum = 1000 + (Math.random() * 9000).toInt()
+        val rCode = "PNB-$codeNum"
+        val newRedemption = RedemptionItem(
+            stationId = targetStationId,
+            promotionTitle = promotionTitle,
+            driverEmail = driverEmail,
+            timestamp = System.currentTimeMillis(),
+            date = todayStr,
+            status = "Resgatado",
+            redemptionCode = rCode
+        )
+        viewModelScope.launch {
+            FirebaseManager.syncRedemptionToFirestore(newRedemption) { success ->
+                onComplete(success, rCode)
+                // If the screen viewing is currently the station that owns this promo, refresh.
+                val ownerUid = FirebaseManager.getCurrentUserUid() ?: editStationEmail.value
+                if (targetStationId == ownerUid) {
+                    fetchRedemptions()
+                }
+            }
+        }
+    }
+
     fun fetchPromotions() {
+        fetchSales()
+        fetchRedemptions()
         FirebaseManager.fetchAllPromotionsFromFirestore { cloudPromos ->
             viewModelScope.launch {
                 val stationsList = repository.allStations.first()

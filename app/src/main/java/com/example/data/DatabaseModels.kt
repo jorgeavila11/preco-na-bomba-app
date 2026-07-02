@@ -121,3 +121,24 @@ interface PrecoNaBombaDao {
 abstract class PrecoNaBombaDatabase : RoomDatabase() {
     abstract fun precoNaBombaDao(): PrecoNaBombaDao
 }
+
+data class SaleItem(
+    val docId: String? = null,
+    val stationId: String,
+    val category: String, // "Combustível", "Conveniência", "Serviços"
+    val amount: Double,
+    val date: String, // ISO date string, e.g. "2026-06-15"
+    val timestamp: Long,
+    val promotionTitle: String? = null
+)
+
+data class RedemptionItem(
+    val docId: String? = null,
+    val stationId: String,
+    val promotionTitle: String,
+    val driverEmail: String,
+    val timestamp: Long,
+    val date: String,
+    val status: String = "Resgatado", // "Resgatado" or "Utilizado"
+    val redemptionCode: String = ""
+)

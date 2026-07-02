@@ -1672,13 +1672,41 @@ fun StationSalesScreen(viewModel: PrecoNaBombaViewModel) {
     var timeRange by remember { mutableStateOf("Últimos 30 dias") }
     var isDropdownExpanded by remember { mutableStateOf(false) }
 
-    // Dynamic data based on selection
-    val totalSales = when (timeRange) {
-        "Últimos 30 dias" -> "R$ 142.580"
-        "Últimos 7 dias" -> "R$ 38.920"
-        else -> "R$ 5.840"
+    val rawSalesList by viewModel.salesList.collectAsState()
+    val rawRedemptionsList by viewModel.redemptionsList.collectAsState()
+
+    // Trigger loading of sales and redemptions when screen opens
+    LaunchedEffect(Unit) {
+        viewModel.fetchSales()
+        viewModel.fetchRedemptions()
     }
-    val totalSalesFraction = ",00"
+
+    val filteredSalesList = remember(rawSalesList, timeRange) {
+        val now = System.currentTimeMillis()
+        val filterDurationMs = when (timeRange) {
+            "Hoje" -> 24L * 60 * 60 * 1000 // Today
+            "Últimos 7 dias" -> 7L * 24 * 60 * 60 * 1000
+            else -> 30L * 24 * 60 * 60 * 1000 // 30 days
+        }
+        rawSalesList.filter { (now - it.timestamp) <= filterDurationMs }
+    }
+
+    val filteredRedemptionsList = remember(rawRedemptionsList, timeRange) {
+        val now = System.currentTimeMillis()
+        val filterDurationMs = when (timeRange) {
+            "Hoje" -> 24L * 60 * 60 * 1000 // Today
+            "Últimos 7 dias" -> 7L * 24 * 60 * 60 * 1000
+            else -> 30L * 24 * 60 * 60 * 1000 // 30 days
+        }
+        rawRedemptionsList.filter { (now - it.timestamp) <= filterDurationMs }
+    }
+
+    // Calculations based on filtered sales
+    val totalSalesDouble = filteredSalesList.sumOf { it.amount }
+    val totalSalesFormatted = String.format("R$ %,.2f", totalSalesDouble).replace('.', 'X').replace(',', '.').replace('X', ',')
+    val totalSales = totalSalesFormatted.substringBefore(",")
+    val totalSalesFraction = if (totalSalesFormatted.contains(",")) "," + totalSalesFormatted.substringAfter(",") else ",00"
+
     val performancePercentage = when (timeRange) {
         "Últimos 30 dias" -> "+12.4%"
         "Últimos 7 dias" -> "+8.7%"
@@ -1690,11 +1718,8 @@ fun StationSalesScreen(viewModel: PrecoNaBombaViewModel) {
         else -> "Performance diária dentro do esperado"
     }
 
-    val ticketMedioVal = when (timeRange) {
-        "Últimos 30 dias" -> "R$ 214,50"
-        "Últimos 7 dias" -> "R$ 195,10"
-        else -> "R$ 180,20"
-    }
+    val ticketMedioDouble = if (filteredSalesList.isNotEmpty()) totalSalesDouble / filteredSalesList.size else 0.0
+    val ticketMedioVal = String.format("R$ %,.2f", ticketMedioDouble).replace('.', 'X').replace(',', '.').replace('X', ',')
     val ticketMedioSub = when (timeRange) {
         "Últimos 30 dias" -> "⬇ 2.1% vs ant."
         "Últimos 7 dias" -> "⬆ 1.5% vs ant."
@@ -1705,11 +1730,9 @@ fun StationSalesScreen(viewModel: PrecoNaBombaViewModel) {
         else -> Color(0xFF2563EB) // blue-green
     }
 
-    val conversionVal = when (timeRange) {
-        "Últimos 30 dias" -> "34,2%"
-        "Últimos 7 dias" -> "31,8%"
-        else -> "29,5%"
-    }
+    val promoSalesCount = filteredSalesList.count { !it.promotionTitle.isNullOrBlank() }
+    val conversionPercentage = if (filteredSalesList.isNotEmpty()) (promoSalesCount.toDouble() / filteredSalesList.size) * 100.0 else 32.5
+    val conversionVal = String.format("%.1f%%", conversionPercentage).replace('.', ',')
     val conversionSub = when (timeRange) {
         "Últimos 30 dias" -> "⬆ 5.4% vs ant."
         "Últimos 7 dias" -> "⬆ 2.1% vs ant."
@@ -1720,55 +1743,29 @@ fun StationSalesScreen(viewModel: PrecoNaBombaViewModel) {
         else -> Color(0xFF2563EB) // blue-green
     }
 
-    // Pie chart values (combustível, conveniência, serviços)
-    val combustivelPct = when (timeRange) {
-        "Últimos 30 dias" -> 0.65f
-        "Últimos 7 dias" -> 0.68f
-        else -> 0.72f
-    }
-    val convenienciaPct = when (timeRange) {
-        "Últimos 30 dias" -> 0.20f
-        "Últimos 7 dias" -> 0.18f
-        else -> 0.15f
-    }
-    val servicosPct = when (timeRange) {
-        "Últimos 30 dias" -> 0.15f
-        "Últimos 7 dias" -> 0.14f
-        else -> 0.13f
-    }
+    // Pie chart segments (combustível, conveniência, serviços)
+    val totalFuel = filteredSalesList.filter { it.category == "Combustível" }.sumOf { it.amount }
+    val totalConvenience = filteredSalesList.filter { it.category == "Conveniência" }.sumOf { it.amount }
+    val totalServices = filteredSalesList.filter { it.category == "Serviços" }.sumOf { it.amount }
+    
+    val denom = if (totalSalesDouble > 0) totalSalesDouble else 1.0
+    val combustivelPct = (totalFuel / denom).toFloat()
+    val convenienciaPct = (totalConvenience / denom).toFloat()
+    val servicosPct = (totalServices / denom).toFloat()
 
-    // Promo list data
-    val promo1Value = when (timeRange) {
-        "Últimos 30 dias" -> "R$ 12.400"
-        "Últimos 7 dias" -> "R$ 3.850"
-        else -> "R$ 680"
-    }
-    val promo1Progress = when (timeRange) {
-        "Últimos 30 dias" -> 0.75f
-        "Últimos 7 dias" -> 0.55f
-        else -> 0.34f
-    }
-    val promo1Counter = when (timeRange) {
-        "Últimos 30 dias" -> "750 cupons usados"
-        "Últimos 7 dias" -> "230 cupons usados"
-        else -> "34 cupons usados"
-    }
+    // Promo 1 - Gasolina Premium - R$0,20 OFF
+    val promo1TotalAmount = filteredSalesList.filter { it.promotionTitle == "Gasolina Premium - R$0,20 OFF" }.sumOf { it.amount }
+    val promo1Count = filteredSalesList.count { it.promotionTitle == "Gasolina Premium - R$0,20 OFF" }
+    val promo1Value = String.format("R$ %,.2f", promo1TotalAmount).replace('.', 'X').replace(',', '.').replace('X', ',').substringBefore(",")
+    val promo1Progress = (promo1Count.toFloat() / 1000f).coerceIn(0f, 1f)
+    val promo1Counter = "$promo1Count cupons usados"
 
-    val promo2Value = when (timeRange) {
-        "Últimos 30 dias" -> "R$ 4.250"
-        "Últimos 7 dias" -> "R$ 1.150"
-        else -> "R$ 240"
-    }
-    val promo2Progress = when (timeRange) {
-        "Últimos 30 dias" -> 0.40f
-        "Últimos 7 dias" -> 0.25f
-        else -> 0.16f
-    }
-    val promo2Counter = when (timeRange) {
-        "Últimos 30 dias" -> "320 pedidos"
-        "Últimos 7 dias" -> "92 pedidos"
-        else -> "16 pedidos"
-    }
+    // Promo 2 - Combo Café + Pão de Queijo
+    val promo2TotalAmount = filteredSalesList.filter { it.promotionTitle == "Combo Café + Pão de Queijo" }.sumOf { it.amount }
+    val promo2Count = filteredSalesList.count { it.promotionTitle == "Combo Café + Pão de Queijo" }
+    val promo2Value = String.format("R$ %,.2f", promo2TotalAmount).replace('.', 'X').replace(',', '.').replace('X', ',').substringBefore(",")
+    val promo2Progress = (promo2Count.toFloat() / 800f).coerceIn(0f, 1f)
+    val promo2Counter = "$promo2Count pedidos"
 
     Scaffold(
         topBar = {
@@ -1904,6 +1901,200 @@ fun StationSalesScreen(viewModel: PrecoNaBombaViewModel) {
                         Box(modifier = Modifier.width(14.dp).height(2.dp).background(Color.White))
                         Box(modifier = Modifier.width(10.dp).height(2.dp).background(Color.White))
                         Box(modifier = Modifier.width(6.dp).height(2.dp).background(Color.White))
+                    }
+                }
+            }
+
+            // PDV Simulator Panel for Firestore feeding demonstration
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFEFF6FF)),
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFBFDBFE))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .background(Color(0xFF2563EB), CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "Simulador de Vendas do PDV (Integrado ao Firebase)",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.ExtraBold,
+                            color = Color(0xFF1E40AF),
+                            letterSpacing = 0.5.sp
+                        )
+                    }
+                    Text(
+                        text = "Toque abaixo para simular uma transação de PDV em tempo real no seu posto. Cada clique envia uma venda real para o Firestore no Firebase, atualizando instantaneamente os gráficos desta tela!",
+                        fontSize = 11.sp,
+                        color = Color(0xFF1E3A8A),
+                        lineHeight = 15.sp
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                viewModel.addNewSale(
+                                    category = "Combustível",
+                                    amount = 180.0,
+                                    promotionTitle = "Gasolina Premium - R$0,20 OFF"
+                                )
+                                Toast.makeText(context, "Transação de Combustível enviada ao Firebase!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF033F9E)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f).height(38.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("+ R$180 Gás", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.addNewSale(
+                                    category = "Conveniência",
+                                    amount = 25.0,
+                                    promotionTitle = "Combo Café + Pão de Queijo"
+                                )
+                                Toast.makeText(context, "Pedido do Café enviado ao Firebase!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFFFACC15)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f).height(38.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("+ R$25 Café", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color(0xFF713F12))
+                        }
+
+                        Button(
+                            onClick = {
+                                viewModel.addNewSale(
+                                    category = "Serviços",
+                                    amount = 120.0,
+                                    promotionTitle = "Troca de Óleo"
+                                )
+                                Toast.makeText(context, "Serviço enviado ao Firebase!", Toast.LENGTH_SHORT).show()
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF64748B)),
+                            shape = RoundedCornerShape(10.dp),
+                            modifier = Modifier.weight(1f).height(38.dp),
+                            contentPadding = PaddingValues(0.dp)
+                        ) {
+                            Text("+ R$120 Serv.", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.White)
+                        }
+                    }
+                }
+            }
+
+            // Client Redemptions Live Panel synchronized with Firestore
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(containerColor = Color(0xFFF0FDF4)), // Light elegant green background
+                shape = RoundedCornerShape(16.dp),
+                border = BorderStroke(1.dp, Color(0xFFBBF7D0))
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Box(
+                                modifier = Modifier
+                                    .size(8.dp)
+                                    .background(Color(0xFF22C55E), CircleShape)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = "Últimos Resgates de Clientes (Firestore)",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.ExtraBold,
+                                color = Color(0xFF166534),
+                                letterSpacing = 0.5.sp
+                            )
+                        }
+                        
+                        Text(
+                            text = "${filteredRedemptionsList.size} resgates",
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color(0xFF166534)
+                        )
+                    }
+
+                    Text(
+                        text = "Exibição em tempo real de motoristas que resgataram descontos pelo aplicativo. Quando um motorista clica em resgatar no clube de benefícios, o cupom aparece aqui instantaneamente!",
+                        fontSize = 11.sp,
+                        color = Color(0xFF14532D),
+                        lineHeight = 15.sp
+                    )
+
+                    HorizontalDivider(color = Color(0xFFDCFCE7), thickness = 1.dp)
+
+                    if (filteredRedemptionsList.isEmpty()) {
+                        Text(
+                            text = "Nenhum resgate registrado para o período filtrado.",
+                            fontSize = 11.sp,
+                            color = Color.Gray,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    } else {
+                        // Display top 3 recent redemptions dynamically
+                        filteredRedemptionsList.sortedByDescending { it.timestamp }.take(3).forEach { redemption ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .background(Color.White, RoundedCornerShape(8.dp))
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = redemption.driverEmail,
+                                        fontSize = 11.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = Color(0xFF1E293B)
+                                    )
+                                    Text(
+                                        text = if (redemption.redemptionCode.isNotEmpty()) "${redemption.promotionTitle} • ${redemption.redemptionCode}" else redemption.promotionTitle,
+                                        fontSize = 10.sp,
+                                        color = Color(0xFF64748B)
+                                    )
+                                }
+                                Box(
+                                    modifier = Modifier
+                                        .background(
+                                            if (redemption.status == "Utilizado") Color(0xFFDBEAFE) else Color(0xFFFEF08A),
+                                            RoundedCornerShape(6.dp)
+                                        )
+                                        .padding(horizontal = 6.dp, vertical = 2.dp)
+                                ) {
+                                    Text(
+                                        text = redemption.status.uppercase(),
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.ExtraBold,
+                                        color = if (redemption.status == "Utilizado") Color(0xFF1E40AF) else Color(0xFF854D0E)
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
             }

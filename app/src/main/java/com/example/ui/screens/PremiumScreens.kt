@@ -795,7 +795,11 @@ fun PremiumPromotionsScreen(
                                 Spacer(modifier = Modifier.height(20.dp))
 
                                 Button(
-                                    onClick = { Toast.makeText(context, "Cupom resgatado! Apresente o QR código na bomba.", Toast.LENGTH_LONG).show() },
+                                    onClick = { 
+                                        viewModel.addNewRedemption("posto_default_uid", "Gasolina Premium - R$0,20 OFF") { success, code ->
+                                            Toast.makeText(context, "Cupom de R$0,20 resgatado! Código: $code. Apresente na bomba.", Toast.LENGTH_LONG).show()
+                                        }
+                                    },
                                     modifier = Modifier.align(Alignment.End),
                                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondaryContainer),
                                     shape = RoundedCornerShape(8.dp)
@@ -831,6 +835,7 @@ fun PremiumPromotionsScreen(
                     } else {
                         items(filteredPromos) { item ->
                             val lastDay = isPromoLastDay(item.endDate)
+                            val targetId = item.firestoreStationId ?: "posto_default_uid"
                             promoCardRowItem(
                                 category = item.category,
                                 title = item.title,
@@ -840,7 +845,15 @@ fun PremiumPromotionsScreen(
                                 isLastDay = lastDay,
                                 isDeactivated = item.isDeactivated,
                                 deactivationJustification = item.deactivationJustification,
-                                onAction = { Toast.makeText(context, "Cupom para ${item.title} resgatado com sucesso!", Toast.LENGTH_SHORT).show() }
+                                onAction = {
+                                    viewModel.addNewRedemption(targetId, item.title) { success, code ->
+                                        if (success) {
+                                            Toast.makeText(context, "Cupom para ${item.title} resgatado! Código: $code. Apresente no posto.", Toast.LENGTH_LONG).show()
+                                        } else {
+                                            Toast.makeText(context, "Erro ao resgatar o cupom no Firebase.", Toast.LENGTH_SHORT).show()
+                                        }
+                                    }
+                                }
                             )
                         }
                     }
